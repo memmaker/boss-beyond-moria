@@ -592,6 +592,24 @@ end;
 
 { inv: "<colour>\t<text>" lines; vis: "M<glyph><name>\t<colour>" and
   "I<glyph><name>\t<colour>" (PC palette indexes; BOSS has no colours) }
+{ BOSS has no item colours: Angband's by kind, as PC palette indexes }
+function rl_colour(tval : integer) : char;
+begin
+case tval of
+  75, 76: rl_colour := '9';          { potions: light blue }
+  70, 71: rl_colour := 'f';          { scrolls: white }
+  45: rl_colour := 'c';              { rings: light red }
+  40, 55, 80: rl_colour := '6';      { amulets, staffs, food: brown/orange }
+  65: rl_colour := 'a';              { wands: light green }
+  90, 91, 92: rl_colour := 'b';      { books: cyan }
+  15, 77, 100: rl_colour := 'e';     { light, flasks, gold: yellow }
+  10, 11, 12: rl_colour := '8';      { ammo: dark grey }
+  30..36: rl_colour := '6';          { armour: umber }
+  82, 84: rl_colour := 'd';          { devices: magenta }
+  otherwise rl_colour := '7'         { weapons, tools }
+end
+end;
+
 procedure rl_lists;
 var
   inv, vis : ansistring;
@@ -603,13 +621,13 @@ inv := ''; vis := '';
 for i := 1 to inven_ctr do
   begin
   objdes(s, i, true, 'i');
-  inv := inv + '7'#9 + alpha_set[i] + ') ' + s + #10
+  inv := inv + rl_colour(inventory[i].tval) + #9 + alpha_set[i] + ') ' + s + #10
   end;
 for i := 23 to equip_max do
   if equipment[i].tval > 0 then
     begin
     objdes(s, i, true, 'e');
-    inv := inv + '7'#9'worn: ' + s + #10
+    inv := inv + rl_colour(equipment[i].tval) + #9'worn: ' + s + #10
     end;
 if py.flags.blind < 1 then
   begin

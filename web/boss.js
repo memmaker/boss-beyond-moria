@@ -74,10 +74,11 @@ function grid(g, buf, C, R) {
 		}
 }
 function drawPane(p) {
-	const q = P[p], c = $(PANE_BOX[p]).firstChild;
+	const q = P[p], b = $(PANE_BOX[p]), c = b.firstChild;
 	if (!q) return;
+	/* message line (prompts, -more-): plain text in the log's style above it; gone when empty */
+	if (p === 4) { const t = String.fromCharCode(...q.buf.map(v => v & 0xff || 32)).trimEnd(); b.textContent = t; b.hidden = !t || t === ($("log").lastChild || {}).textContent; return; }
 	grid(size(c, q.c * cw, q.r * ch), q.buf, q.c, q.r);
-	if (p === 4) c.parentNode.style.height = q.r * ch + 'px';
 	if (p !== MAP) return;
 	const cy = cur.y - q.y, cx = cur.x - q.x;
 	if (cy >= 0 && cy < q.r && cx >= 0 && cx < q.c) {
@@ -93,11 +94,12 @@ function logMsg(s) {
 	if (l.childNodes.length > 500) l.removeChild(l.firstChild);
 	if (end) l.scrollTop = l.scrollHeight;
 }
-function fonts() { ['log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; }); }
-function saveLayout() { try { localStorage.setItem('boss-layout', JSON.stringify(L)); } catch (e) { } }
+function fonts() { ['msgcv', 'log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; }); }
+/* layout: a file next to the saves, so it goes to IndexedDB with them (persist) */
+function saveLayout() { root.contents.set('web-layout.json', new File(new TextEncoder().encode(JSON.stringify(L)))); persist().then(persist); }
 /* the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
 function makeWM() {
-	try { const s = JSON.parse(localStorage.getItem('boss-layout')); if (s) L = { px: s.px | 0, font: s.font || 13, wm: s.wm }; } catch (e) { }
+	try { const s = JSON.parse(new TextDecoder().decode(root.contents.get('web-layout.json').data)); if (s) L = { px: s.px | 0, font: s.font || 13, wm: s.wm }; } catch (e) { }
 	if (L.px >= 8 && L.px <= 40) { px = L.px; auto = false; measure(); }
 	fonts();
 	wm = RvipWM({
@@ -167,9 +169,9 @@ const boss = {
 		cstr(inv).split('\n').forEach(l => {
 			if (!l) return;
 			const t = l.split('\t'), d = document.createElement('div');
-			d.textContent = t[1]; d.style.color = PAL[+t[0] || 7]; $('inv').appendChild(d);
+			d.textContent = t[1]; d.style.color = PAL[parseInt(t[0], 16) || 7]; $('inv').appendChild(d);
 		});
-		RvipWM.visible($('vis'), cstr(vis).replace(/\t(\d+)$/gm, (m, c) => '\t' + PAL[+c || 7]));
+		RvipWM.visible($('vis'), cstr(vis).replace(/\t([0-9a-f])$/gm, (m, c) => '\t' + PAL[parseInt(c, 16) || 7]));
 	},
 	/* asyncified: a Promise makes the game wait */
 	be_getkey(wait) {
