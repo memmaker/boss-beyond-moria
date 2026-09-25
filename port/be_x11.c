@@ -113,7 +113,7 @@ static int keycode(XKeyEvent *ev)
     return n == 1 ? (unsigned char)buf[0] : -1;
 }
 
-int be_getkey(int wait)
+int be_getkey(int wait, int atcmd)
 {
     XEvent ev;
     for (;;) {

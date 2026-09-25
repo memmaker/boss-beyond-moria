@@ -36,7 +36,7 @@ function measure() {
 }
 /* panes (port/bcrt.pas): 1 map, 2 character column, 3 status line, 4 message line; the game
  * sends each one's cells and says when a pop-up (any non-dungeon screen) covers them */
-const MAP = 1, PANE_BOX = { 1: 'map', 2: 'side', 3: 'stat', 4: 'msgcv' }, P = {};
+const MAP = 1, PANE_BOX = { 1: 'map', 2: 'side', 3: 'stat' }, P = {};
 let popup = true;
 function size(c, w, h) {
 	if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; }
@@ -70,10 +70,11 @@ function grid(g, buf, C, R) {
 		}
 }
 function drawPane(p) {
-	const q = P[p], b = $(PANE_BOX[p]), c = b.firstChild;
+	const q = P[p];
 	if (!q) return;
-	/* message line (prompts, -more-): plain text in the log's style above it; gone when empty */
-	if (p === 4) { const t = String.fromCharCode(...q.buf.map(v => v & 0xff || 32)).trimEnd(); b.textContent = t; b.hidden = !t || t === lastMsg; return; }
+	/* message line (prompts, -more-): the prompt line over the map (rvip-wm.js) */
+	if (p === 4) { RvipWM.prompt.text(String.fromCharCode(...q.buf.map(v => v & 0xff || 32))); return; }
+	const b = $(PANE_BOX[p]), c = b.firstChild;
 	grid(size(c, q.c * cw, q.r * ch), q.buf, q.c, q.r);
 	if (p !== MAP) return;
 	const cy = cur.y - q.y, cx = cur.x - q.x;
@@ -86,7 +87,7 @@ function drawPane(p) {
 /* message history: lines the game prints (be_msg) */
 let lastMsg = '';
 function logMsg(s, fold) { lastMsg = s.replace(/ \(x\d+\)$/, ''); RvipWM.log($('log'), s, fold); }
-function fonts() { ['msgcv', 'log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; }); }
+function fonts() { ['log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; }); }
 /* layout: a file next to the saves, so it goes to IndexedDB with them (persist) */
 function saveLayout() { root.contents.set('web-layout.json', new File(new TextEncoder().encode(JSON.stringify(L)))); persist().then(persist); }
 /* the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
@@ -167,7 +168,8 @@ const boss = {
 		RvipWM.visible($('vis'), cstr(vis).replace(/\t([0-9a-f])$/gm, (m, c) => '\t' + PAL[parseInt(c, 16) || 7]));
 	},
 	/* asyncified: a Promise makes the game wait */
-	be_getkey(wait) {
+	be_getkey(wait, atCmd) {
+		RvipWM.prompt.wait(atCmd);
 		if (events.length) return events.shift();
 		if (!wait) {
 			/* polling (explore, rest): let the page paint now and then */

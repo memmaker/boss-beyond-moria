@@ -13,6 +13,7 @@ type
 var
   scr : tscreen;
   text_attr : longint = 0;    { or-ed into written cells: colour << 8, $10000 reverse }
+  crt_at_cmd : boolean = false;  { inc/rl.inc: inkey waits for a command (web prompt line) }
 
 procedure gotoxy(x, y : integer);
 procedure clreol;
@@ -44,7 +45,7 @@ procedure be_init(c, r : longint); external 'boss' name 'be_init';
 procedure be_put(y, x, ch : longint); external 'boss' name 'be_put';
 procedure be_cursor(y, x : longint); external 'boss' name 'be_cursor';
 procedure be_flush; external 'boss' name 'be_flush';
-function be_getkey(wait : longint) : longint; external 'boss' name 'be_getkey';
+function be_getkey(wait, atcmd : longint) : longint; external 'boss' name 'be_getkey';
 procedure be_sleep(ms : longint); external 'boss' name 'be_sleep';
 function be_want_save : longint; external 'boss' name 'be_want_save';
 procedure be_savename(p : pchar; saved : longint); external 'boss' name 'be_savename';
@@ -62,7 +63,7 @@ procedure be_init(c, r : longint); cdecl; external;
 procedure be_put(y, x, ch : longint); cdecl; external;
 procedure be_cursor(y, x : longint); cdecl; external;
 procedure be_flush; cdecl; external;
-function be_getkey(wait : longint) : longint; cdecl; external;
+function be_getkey(wait, atcmd : longint) : longint; cdecl; external;
 procedure be_sleep(ms : longint); cdecl; external;
 function be_want_save : longint; begin be_want_save := 0 end;
 procedure be_savename(p : pchar; saved : longint); begin end;
@@ -193,7 +194,7 @@ begin
 if pending < 0 then
   begin
   crt_present;
-  pending := be_getkey(0)
+  pending := be_getkey(0, ord(crt_at_cmd))
   end;
 keypressed := pending >= 0
 end;
@@ -201,7 +202,7 @@ end;
 function readkey : char;
 begin
 crt_present;
-if pending < 0 then pending := be_getkey(1);
+if pending < 0 then pending := be_getkey(1, ord(crt_at_cmd));
 readkey := chr(pending);
 pending := -1
 end;

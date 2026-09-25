@@ -685,7 +685,9 @@ repeat
     if rl_monster_near then rl_reopen := #0
     else begin s := rl_inven(rl_reopen); if s <> '' then rl_q := s; continue end
     end;
+  crt_at_cmd := true;
   inkey(command);
+  crt_at_cmd := false;
   if command in [#13, #10] then
     begin
     command := rl_menu;
