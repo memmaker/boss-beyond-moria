@@ -51,7 +51,7 @@ procedure be_pane(p, y, x, r, c : longint); external 'boss' name 'be_pane';
 procedure be_pput(p, y, x, ch : longint); external 'boss' name 'be_pput';
 procedure be_popup(on : longint); external 'boss' name 'be_popup';
 procedure be_lists(inv, vis : pchar); external 'boss' name 'be_lists';
-procedure be_msg(s : pchar); external 'boss' name 'be_msg';
+procedure be_msg(s : pchar; fold : longint); external 'boss' name 'be_msg';
 {$ELSE}
 {$L be.o}
 {$linklib X11}
@@ -69,7 +69,7 @@ procedure be_pane(p, y, x, r, c : longint); begin end;
 procedure be_pput(p, y, x, ch : longint); begin end;
 procedure be_popup(on : longint); begin end;
 procedure be_lists(inv, vis : pchar); begin end;
-procedure be_msg(s : pchar); begin end;
+procedure be_msg(s : pchar; fold : longint); begin end;
 {$ENDIF}
 
 var
@@ -96,9 +96,25 @@ begin
 view := on
 end;
 
+{ a repeat of the last message becomes "message (xN)", replacing the
+  page's last line (fold = 1) }
+const prev_msg : string = '';
+      reps : longint = 1;
 procedure crt_msg(const s : string);
 var z : ansistring;
-begin z := s; be_msg(pchar(z)) end;
+begin
+if (prev_msg <> '') and (s = prev_msg) then
+  begin
+  inc(reps);
+  z := s + ' (x' + IntToStr(reps) + ')';
+  be_msg(pchar(z), 1)
+  end
+else
+  begin
+  prev_msg := s; reps := 1;
+  z := s; be_msg(pchar(z), 0)
+  end
+end;
 
 procedure crt_lists(const inv, vis : ansistring);
 begin

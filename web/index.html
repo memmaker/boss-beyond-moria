@@ -33,10 +33,10 @@
 	.win > .body { flex: 1; min-height: 0; overflow: hidden; }
 	.win > .body canvas { display: block; }
 	#msgb { display: flex; flex-direction: column; }
-	#msgcv { flex: none; position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+	#msgcv { flex: none; border-bottom: 1px solid var(--line); }
 	#log { flex: 1; min-height: 0; }
-	.win > .body canvas, #msgcv canvas, #full canvas { position: absolute; }
-	#log, #inv { overflow-y: auto; padding: 4px 8px; font: 13px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+	.win > .body canvas, #full canvas { position: absolute; }
+	#msgcv, #log, #inv { overflow-y: auto; padding: 4px 8px; font: 13px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
 	#log div + div { border-top: 1px solid var(--line); }
 	#full { position: absolute; inset: 0; z-index: 3; background: #000; }
 	#full[hidden] { display: none; }
@@ -98,7 +98,7 @@
 	<div class="win" id="t-map"><div class="t"><span class="name">Map</span></div><div class="body" id="map"><canvas></canvas></div></div>
 	<div class="win" id="t-side"><div class="t"><span class="name">Character</span></div><div class="body" id="side"><canvas></canvas></div></div>
 	<div class="win" id="t-stat"><div class="t"><span class="name">Status</span></div><div class="body" id="stat"><canvas></canvas></div></div>
-	<div class="win" id="t-msg"><div class="t"><span class="name">Messages</span></div><div class="body" id="msgb"><div id="msgcv"><canvas></canvas></div><div id="log" aria-label="Messages"></div></div></div>
+	<div class="win" id="t-msg"><div class="t"><span class="name">Messages</span></div><div class="body" id="msgb"><div id="msgcv" hidden></div><div id="log" aria-label="Messages"></div></div></div>
 	<div class="win" id="t-inv"><div class="t"><span class="name">Inventory</span></div><div class="body" id="inv"></div></div>
 	<div class="win" id="t-vis"><div class="t"><span class="name">Visible</span></div><div class="body wm-list" id="vis"></div></div>
 	<div id="full"><canvas></canvas></div>

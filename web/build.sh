@@ -14,7 +14,7 @@ wasm-opt -O2 --enable-reference-types --enable-bulk-memory --enable-bulk-memory-
 	web/build/boss.wasm -o "$OUT/boss.wasm"
 cp dat/* "$OUT/dat/"
 /bin/ls dat > "$OUT/dat/files.txt"
-cp web/index.html web/boss.js web/rvip-wm.js "$OUT/"
+cp web/index.html web/boss.js "$HOME/Games/rvip-tools/web/rvip-wm.js" "$OUT/"
 cp -r web/vendor "$OUT/vendor"
 python3 web/make-help.py > "$OUT/help.html"
 rm -rf web/build

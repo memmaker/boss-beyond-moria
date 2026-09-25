@@ -77,7 +77,7 @@ function drawPane(p) {
 	const q = P[p], b = $(PANE_BOX[p]), c = b.firstChild;
 	if (!q) return;
 	/* message line (prompts, -more-): plain text in the log's style above it; gone when empty */
-	if (p === 4) { const t = String.fromCharCode(...q.buf.map(v => v & 0xff || 32)).trimEnd(); b.textContent = t; b.hidden = !t || t === ($("log").lastChild || {}).textContent; return; }
+	if (p === 4) { const t = String.fromCharCode(...q.buf.map(v => v & 0xff || 32)).trimEnd(); b.textContent = t; b.hidden = !t || t === lastMsg; return; }
 	grid(size(c, q.c * cw, q.r * ch), q.buf, q.c, q.r);
 	if (p !== MAP) return;
 	const cy = cur.y - q.y, cx = cur.x - q.x;
@@ -88,12 +88,8 @@ function drawPane(p) {
 	} else scroll(c, 0, 0);
 }
 /* message history: lines the game prints (be_msg) */
-function logMsg(s) {
-	const l = $('log'), d = document.createElement('div'), end = l.scrollTop + l.clientHeight >= l.scrollHeight - 4;
-	d.textContent = s; l.appendChild(d);
-	if (l.childNodes.length > 500) l.removeChild(l.firstChild);
-	if (end) l.scrollTop = l.scrollHeight;
-}
+let lastMsg = '';
+function logMsg(s, fold) { lastMsg = s.replace(/ \(x\d+\)$/, ''); RvipWM.log($('log'), s, fold); }
 function fonts() { ['msgcv', 'log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; }); }
 /* layout: a file next to the saves, so it goes to IndexedDB with them (persist) */
 function saveLayout() { root.contents.set('web-layout.json', new File(new TextEncoder().encode(JSON.stringify(L)))); persist().then(persist); }
@@ -163,7 +159,7 @@ const boss = {
 	be_pane(p, y, x, r, c) { P[p] = { y, x, r, c, buf: new Uint32Array(r * c) }; dirty = true; },
 	be_pput(p, y, x, v) { P[p].buf[y * P[p].c + x] = v; dirty = true; },
 	be_popup(on) { if (popup !== !!on) { popup = !!on; dirty = true; } },
-	be_msg(p) { const s = cstr(p).trim(); if (s) logMsg(s); },
+	be_msg(p, fold) { const s = cstr(p).trim(); if (s) logMsg(s, fold); },
 	be_lists(inv, vis) {
 		$('inv').innerHTML = '';
 		cstr(inv).split('\n').forEach(l => {
