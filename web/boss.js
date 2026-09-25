@@ -17,6 +17,7 @@ const KEYS = { ArrowUp: 56, ArrowDown: 50, ArrowLeft: 52, ArrowRight: 54, Home: 
 
 let events = [], waiter = null, running = false, lastYield = 0, lastSave = 0, wantSaveFlag = false;
 let cols = 80, rows = 24, scr = null, cur = { y: 0, x: 0 };
+let wm = null, rects = {}, L = { px: 0, font: 13, wm: null };
 let auto = true, cv, ctx, px = 18, cw = 11, ch = 22, dirty = true;
 const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 let root, dat, memory, exports, currentSave = null, savedByPlayer = false;
@@ -38,14 +39,73 @@ function measure() {
 	ctx.textBaseline = 'top';
 	dirty = true;
 }
+/* screen: row 0 messages, cols 0-12 stats, cols 13-79 rows 1-22 map, rows 23- status */
+const MX = 13, MH = 22;
+/* biggest font that shows the map (single window: the whole screen) in the map window */
 function fit() {
-	const g = $('game');
+	const b = $('map'), one = !rects.side && !rects.stat, w = one ? cols : cols - MX, h = one ? rows : MH;
 	let best = 8;
 	for (let p = 8; p <= 40; p++) {
 		ctx.font = p + 'px ' + FONT;
-		if (Math.ceil(ctx.measureText('M').width) * cols <= g.clientWidth && Math.ceil(p * 1.2) * rows <= g.clientHeight) best = p;
+		if (Math.ceil(ctx.measureText('M').width) * w <= b.clientWidth && Math.ceil(p * 1.2) * h <= b.clientHeight) best = p;
 	}
 	return best;
+}
+/* windows are crops of the offscreen screen canvas; bigger than the window = centred on the cursor */
+function blit(id, sx, sy, sw, sh, fx, fy) {
+	const b = $(id), c = b.firstChild, W = b.clientWidth, H = b.clientHeight, s = id === 'full' ? Math.min(1, W / sw, H / sh) : 1;
+	if (c.width !== W * dpr || c.height !== H * dpr) { c.width = W * dpr; c.height = H * dpr; c.style.width = W + 'px'; c.style.height = H + 'px'; }
+	const g = c.getContext('2d'), ox = sw * s <= W ? (sw * s - W) / 2 : Math.max(0, Math.min(sw - W, fx - W / 2)),
+		oy = sh * s <= H ? 0 : Math.max(0, Math.min(sh - H, fy - H / 2));
+	g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+	g.imageSmoothingEnabled = s < 1;
+	g.setTransform(dpr * s, 0, 0, dpr * s, -ox * dpr, -oy * dpr);
+	g.drawImage(cv, sx * dpr, sy * dpr, sw * dpr, sh * dpr, 0, 0, sw, sh);
+}
+function rowText(y, x0, x1) { let s = ''; for (let x = x0; x < x1; x++) s += String.fromCharCode(scr[y * cols + x] & 0xff || 32); return s; }
+/* the dungeon screen shows "STR :" in the stats column; anything else (menus, stores) is full screen */
+function onMap() { for (let y = 1; y <= MH; y++) if (/^\s*STR :/.test(rowText(y, 0, MX))) return true; return false; }
+function show() {
+	if (!wm) return;
+	const one = !rects.side && !rects.stat, full = !one && !onMap();
+	$('full').hidden = !full;
+	if (full) blit('full', 0, 0, cols * cw, rows * ch, 0, 0);
+	if (one) blit('map', 0, 0, cols * cw, rows * ch, cur.x * cw, cur.y * ch);
+	else if (rects.map) blit('map', MX * cw, ch, (cols - MX) * cw, MH * ch, (cur.x - MX) * cw, (cur.y - 1) * ch);
+	if (rects.side) blit('side', 0, ch, MX * cw, MH * ch, 0, 0);
+	if (rects.stat) blit('stat', 0, (MH + 1) * ch, cols * cw, (rows - MH - 1) * ch, 0, 0);
+	logRow(rowText(0, 0, cols));
+}
+/* message log: new text on row 0 goes to the Messages window */
+let lastMsg = '';
+function logRow(s) {
+	s = s.replace(/[^ -~]/g, ' ').trim();
+	if (s === lastMsg) return;
+	lastMsg = s;
+	if (!/[A-Za-z]{2}/.test(s)) return;
+	const l = $('log'), d = document.createElement('div'), end = l.scrollTop + l.clientHeight >= l.scrollHeight - 4;
+	d.textContent = s; l.appendChild(d);
+	if (l.childNodes.length > 500) l.removeChild(l.firstChild);
+	if (end) l.scrollTop = l.scrollHeight;
+}
+function saveLayout() { try { localStorage.setItem('boss-layout', JSON.stringify(L)); } catch (e) { } }
+/* the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
+function makeWM() {
+	try { const s = JSON.parse(localStorage.getItem('boss-layout')); if (s) L = { px: s.px | 0, font: s.font || 13, wm: s.wm }; } catch (e) { }
+	if (L.px >= 8 && L.px <= 40) { px = L.px; auto = false; measure(); }
+	$('log').style.fontSize = L.font + 'px';
+	wm = RvipWM({
+		area: $('game'), menu: $('btn-layout'),
+		wins: [{ id: 'map', title: 'Map' }, { id: 'side', title: 'Character' }, { id: 'stat', title: 'Status' }, { id: 'msg', title: 'Messages' }],
+		multi: { d: 'h', r: 0.78, a: { d: 'v', r: 0.88, a: { d: 'h', r: 0.16, a: 'side', b: 'map' }, b: 'stat' }, b: 'msg' },
+		single: 'map',
+		state: L.wm, noFont: 'map',
+		save: st => { L.wm = st; saveLayout(); },
+		layout: r => { rects = r; if (auto) { px = fit(); measure(); } dirty = true; draw(); },
+		font: (id, d) => { L.font = Math.max(8, Math.min(28, L.font + d)); $('log').style.fontSize = L.font + 'px'; saveLayout(); },
+		onReset: () => { auto = true; L.px = 0; L.font = 13; L.wm = wm.state(); $('log').style.fontSize = '13px'; px = fit(); measure(); draw(); saveLayout(); }
+	});
+	wm.apply();
 }
 function draw() {
 	if (!dirty || !scr) return;
@@ -62,12 +122,13 @@ function draw() {
 		}
 	ctx.fillStyle = PAL[7];
 	ctx.fillRect(cur.x * cw, cur.y * ch + ch - 2, cw, 2);
+	show();
 }
 function zoom(d) {
 	auto = false;
 	px = Math.max(8, Math.min(40, px + d));
 	measure(); draw();
-	try { localStorage.setItem('boss-zoom', px); } catch (e) { }
+	L.px = px; saveLayout();
 }
 
 /* ---------- the game's imports ---------- */
@@ -79,12 +140,8 @@ function cstr(p) {
 const boss = {
 	be_init(c, r) {
 		cols = c; rows = r; scr = new Uint32Array(c * r);
-		try { px = +localStorage.getItem('boss-zoom') || 0; } catch (e) { px = 0; }
 		$('game').hidden = false;
-		auto = !px;
-		if (auto) px = 16;
-		measure();
-		requestAnimationFrame(() => { if (auto) { px = fit(); measure(); draw(); } });
+		px = 16; measure(); makeWM();
 	},
 	be_put(y, x, v) { scr[y * cols + x] = v; dirty = true; },
 	be_cursor(y, x) { cur.y = y; cur.x = x; dirty = true; },
@@ -307,10 +364,10 @@ function toggleHelp() {
 }
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) wantSaveFlag = true; });
-window.addEventListener('resize', () => { if (auto && scr) { px = fit(); measure(); draw(); } });
+window.addEventListener('resize', () => { if (wm) wm.apply(); });
 document.addEventListener('keydown', onKey);
 document.addEventListener('DOMContentLoaded', () => {
-	cv = document.querySelector('#game canvas');
+	cv = document.createElement('canvas');
 	ctx = cv.getContext('2d');
 	$('btn-export').onclick = exportSave;
 	$('btn-import').onclick = () => $('import-file').click();
