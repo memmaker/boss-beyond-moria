@@ -717,6 +717,7 @@
       	  cur_top	      : integer;
           out_val	      : vtype;
           exit_flag	      : boolean;
+          sel		      : integer;
 	  	  
       BEGIN
         cur_top := r1;
@@ -726,28 +727,44 @@
         if (inven_ctr > 0) then
           BEGIN
             out_val := ' (' + raoul_label(r1) + '-' + raoul_label(r2) +
-	    	') <space> for list, <esc> to exit.  ' + pmt;
+	    	') 8/2 5, <space> next page, <esc> to exit.  ' + pmt;
             prt(out_val,1,1);
+            sel := r1;          { RVIP: the list shows at once, with a cursor }
+            inven_command('?',cur_top,r2);
+            redraw := true;
             repeat
+              rl_hl_row(sel-cur_top+2,true);
 	      inkey(command);
+              rl_hl_row(sel-cur_top+2,false);
 	      com_val := ord(command);
 	      case com_val of
-         0,3,13,25,26,27  :  begin { Exit from module }
+         0,3,25,26,27,48,46  :  begin { Exit from module (0 and . too) }
                                exit_flag := true;
 			       reset_flag := true;
                              end;
 
-                       32 :  if (not redraw) then
-			       begin
-			         inven_command('?',cur_top,r2);
-			         redraw := true;
-			       end
-			     else
-			       begin
+              50,56 :  begin   { 8/2 move the cursor }
+                         if (command = '8') and (sel > r1) then dec(sel);
+                         if (command = '2') and (sel < r2) then inc(sel);
+                         if (sel < cur_top) or (sel >= cur_top+inven_per_page) then
+                           begin
+                             cur_top := sel;
+                             inven_command('?',cur_top,r2);
+                           end;
+                       end;
+
+              13,10,53 :  begin   { Enter / 5 choose }
+                         com_val := sel;
+                         exit_flag := true;
+                         get_item := true;
+                       end;
+
+                       32 :  begin
 			         if (cur_top+inven_per_page <= r2) then
  				   cur_top := cur_top + inven_per_page
 			         else
 				   cur_top := r1;
+                                 sel := cur_top;
                                  inven_command('?',cur_top,r2);
                                end;
 

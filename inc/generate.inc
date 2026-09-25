@@ -1210,6 +1210,7 @@ END;
       tlink;
       mlink;
       blank_cave;
+      rl_new_level;
  
       if (dun_level < 0) then 
         Begin

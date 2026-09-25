@@ -28,7 +28,7 @@ function save_char : boolean;
         c                             : char;
 
   { Boolean saving is not so easy in Free Pascal. -MB }
-  procedure save_booleans(list : array of boolean);
+    procedure save_booleans(list : array of boolean);
   var
     i : integer;
   begin
@@ -43,7 +43,7 @@ begin
   assign(f1,fnam);
           { Check if filename already exists. Prompt to overwrite. }
   reset(f1);
-  if IOResult = 0 then
+  if (IOResult = 0) and not rl_quiet_save {$IFDEF CPUWASM32} and false {$ENDIF} then   { web: the file is our own autosave }
     begin
     prt('File with same name character name exists. Overwrite? [y/n]',1,1);
     repeat
@@ -68,9 +68,12 @@ begin
 { Encryption is also dropped. It is easier to encrypt file afterwards but
 nonethless I find it pointless. -MB }
           { Message to player on what is happening}
-      clear(1,1);
-      saveline := 'Saving character as ' + fnam + '...'; 
-      prt(saveline,1,1);
+      if not rl_quiet_save then
+        begin
+        clear(1,1);
+        saveline := 'Saving character as ' + fnam + '...'; 
+        prt(saveline,1,1)
+        end;
 
           { Write out the player record.  }
       with py.misc do
@@ -277,7 +280,9 @@ nonethless I find it pointless. -MB }
       end;
       close(f1);
       { save file version is not reported -MB }
+      if rl_quiet_save then exit;     { web autosave: keep playing }
       prt('Character saved.',1,1);
+      crt_savename(py.misc.name + '.sav', true);
       writeln;
       halt(0)
 end;

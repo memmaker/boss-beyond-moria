@@ -4129,7 +4129,7 @@ END;
               BEGIN
                 print('',char_row,char_col);
                 save_msg_flag := msg_flag;
-                inkey(command);
+                rl_command(command);
                 if (save_msg_flag) then erase_line(msg_line,msg_line);
                 com_val := ord(command);
               END;

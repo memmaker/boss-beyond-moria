@@ -210,11 +210,11 @@ const crown_ascii_art : array[1..15] of string[50] =
         assign(f1,fnam);
         rewrite(f1);
         if IOResult = 0 then
-          for i1 := 0 to 19 do
+          for i1 := 1 to 15 do
             writeln(f1,crown_ascii_art[i1]);
 { Deliberate silent fail. Procedure print_tomb will signal problems. -MB }
         close(f1);
-        for i1 := 0 to 19 do
+        for i1 := 1 to 15 do
           writeln(crown_ascii_art[i1]);
         pause(24)
       END;

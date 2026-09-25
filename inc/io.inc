@@ -1,6 +1,17 @@
+var
+  rl_q : string = '';     { keys queued by inc/rl.inc, read before the keyboard }
+  rl_msgs : longint = 0;  { messages printed so far (explore stops on a new one) }
+  rl_quiet_save : boolean = false;   { web autosave: save_char without prompts or halt }
+
 procedure inkey(var x : char);
 begin
-x := readkey;
+if rl_q <> '' then
+  begin
+  x := rl_q[1];
+  delete(rl_q, 1, 1)
+  end
+else
+  x := readkey;
 msg_flag := false
 end;
 
@@ -10,6 +21,7 @@ var
   in_char : char;
 
 begin
+inc(rl_msgs);
 if msg_flag and more_flag then
   begin
   old_len := length(old_msg) + 1;
@@ -39,7 +51,7 @@ gotoxy(col, row);
 clreol;
 for i := row + 1 to 25 do
   begin
-  used_line[i] := false;
+  if i <= 23 then used_line[i] := false;
   gotoxy(1, i);
   clreol
   end;

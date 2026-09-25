@@ -2,3 +2,9 @@
 # build output
 /boss
 *.o
+/boss-test
+/boss-check
+*.sav
+*.ppu
+/web/dist
+/web/build

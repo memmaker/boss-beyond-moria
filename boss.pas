@@ -35,7 +35,7 @@ BOSS version 2.4b by Michal Bielinski
         {$INCLUDEPATH inc}
         {$I-}
 
-  uses crt, dateutils, math, strutils, sysutils;
+  uses bcrt, dateutils, math, strutils, sysutils;
 
         { Globals }
         {$INCLUDE constants.inc}
@@ -57,6 +57,7 @@ BOSS version 2.4b by Michal Bielinski
         {$INCLUDE store1.inc}
         {$INCLUDE datafiles.inc}
         {$INCLUDE save.inc}
+        {$INCLUDE rl.inc}
         {$INCLUDE create.inc}
         {$INCLUDE generate.inc}
         {$INCLUDE main.inc}
@@ -138,6 +139,7 @@ BOSS version 2.4b by Michal Bielinski
         player_max_exp := trunc(player_exp[max_player_level-1]*expfact);
       clear(1,1);
       prt_stat_block;
+      {$IFDEF RLTEST} wizard := true; {$ENDIF}   { test builds only (make test) }
 
 { Loop till dead, or exit }
     repeat
