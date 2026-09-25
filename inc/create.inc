@@ -459,25 +459,25 @@ end;
          #27: begin
 	       exit_flag := true;
 	     end;
-	 'P': begin {down}
+	 'P','2': begin {down}
 	       unspot(y,x);
 	       y := y + 1;
 	       if (y = 13) then y := 7;	     
 	       spot(y,x);
 	     end;
-	 'K': if (x <> 2) then  {left}
+	 'K','4': if (x <> 2) then  {left}
 	       begin
 		 unspot(y,x);
 		 x := x - 25;
 		 spot(y,x);
 	       end;
-	 'M': if (x <> 52) then  {right}
+	 'M','6': if (x <> 52) then  {right}
 	       begin
 	         unspot(y,x);
 		 x := x + 25;
 		 spot(y,x);
 	       end;
-	 'H': begin {up}
+	 'H','8': begin {up}
 	       unspot(y,x);
 	       y := y - 1;
 	       if (y = 6) then y := 12;

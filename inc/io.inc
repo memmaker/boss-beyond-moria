@@ -22,6 +22,7 @@ var
 
 begin
 inc(rl_msgs);
+crt_msg(str_buff);
 if msg_flag and more_flag then
   begin
   old_len := length(old_msg) + 1;
@@ -47,6 +48,7 @@ procedure clear(row, col : integer);
 var
   i : byte;
 begin
+if row <= 2 then crt_view(false);   { whole screen: not the dungeon view }
 gotoxy(col, row);
 clreol;
 for i := row + 1 to 25 do

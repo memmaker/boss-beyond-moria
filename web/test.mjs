@@ -15,6 +15,7 @@ const boss = {
 	be_put(y, x, v) { scr[y * cols + x] = v; }, be_cursor() {}, be_flush() {},
 	be_getkey(wait) { if (keys.length) return keys.shift(); if (!wait) return -1; show(); console.log('--- out of keys'); process.exit(0); },
 	be_sleep() {}, be_want_save() { return 0; }, be_savename() {},
+	be_pane() {}, be_pput() {}, be_popup() {}, be_msg() {}, be_lists() {},
 };
 // every key goes through an Asyncify unwind/rewind, as in the browser
 let ex, pending, value, data;

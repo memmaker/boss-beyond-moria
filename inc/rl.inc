@@ -74,6 +74,7 @@ var
   done : boolean;
 begin
 saved := scr;
+crt_view(false);
 w := length(title);
 for i := 0 to n - 1 do
   if length(lines[i]) > w then w := length(lines[i]);
@@ -587,6 +588,53 @@ else
   rl_reopen := #0
 end;
 
+{ ---------- Inventory and Visible windows (web) ---------- }
+
+{ inv: "<colour>\t<text>" lines; vis: "M<glyph><name>\t<colour>" and
+  "I<glyph><name>\t<colour>" (PC palette indexes; BOSS has no colours) }
+procedure rl_lists;
+var
+  inv, vis : ansistring;
+  s : shortstring;
+  i, y, x : integer;
+  keep : treasure_type;
+begin
+inv := ''; vis := '';
+for i := 1 to inven_ctr do
+  begin
+  objdes(s, i, true, 'i');
+  inv := inv + '7'#9 + alpha_set[i] + ') ' + s + #10
+  end;
+for i := 23 to equip_max do
+  if equipment[i].tval > 0 then
+    begin
+    objdes(s, i, true, 'e');
+    inv := inv + '7'#9'worn: ' + s + #10
+    end;
+if py.flags.blind < 1 then
+  begin
+  i := muptr;
+  while i > 0 do
+    with m_list[i] do
+      begin
+      if ml then vis := vis + 'M' + c_list[mptr].cchar + c_list[mptr].name + #9'7'#10;
+      i := nptr
+      end;
+  keep := temporary_slot;
+  for y := panel_row_min to panel_row_max do
+    for x := panel_col_min to panel_col_max do
+      with cave[y, x] do
+        if (tptr > 0) and (t_list[tptr].tval <= 100) and test_light(y, x) and los(char_row, char_col, y, x) then
+          begin
+          temporary_slot := t_list[tptr];
+          objdes(s, 0, true, 't');
+          vis := vis + 'I' + t_list[tptr].tchar + s + #9'7'#10
+          end;
+  temporary_slot := keep
+  end;
+crt_lists(inv, vis)
+end;
+
 { ---------- The command prompt ---------- }
 
 { Replaces inkey(command) at the dungeon command prompt. }
@@ -603,6 +651,8 @@ if crt_want_save then
   rl_quiet_save := false
   end;
 repeat
+  crt_view(true);
+  rl_lists;
   if rl_q <> '' then
     begin inkey(command); rl_q_owned := true; exit end;
   if rl_mode > 0 then

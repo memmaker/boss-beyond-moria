@@ -25,6 +25,12 @@ function wherey : integer;
 function crt_want_save : boolean;   { web autosave hooks, see inc/rl.inc }
 procedure crt_savename(const name : string; saved : boolean);
 procedure crt_present;
+{ page windows: the game says when its dungeon screen is up (crt_view); then
+  each pane of that screen goes to its own window, else the whole screen is a
+  pop-up. crt_lists: Inventory / Visible window text (see web/boss.js). }
+procedure crt_view(on : boolean);
+procedure crt_lists(const inv, vis : ansistring);
+procedure crt_msg(const s : string);     { message history line }
 
 implementation
 
@@ -41,6 +47,11 @@ function be_getkey(wait : longint) : longint; external 'boss' name 'be_getkey';
 procedure be_sleep(ms : longint); external 'boss' name 'be_sleep';
 function be_want_save : longint; external 'boss' name 'be_want_save';
 procedure be_savename(p : pchar; saved : longint); external 'boss' name 'be_savename';
+procedure be_pane(p, y, x, r, c : longint); external 'boss' name 'be_pane';
+procedure be_pput(p, y, x, ch : longint); external 'boss' name 'be_pput';
+procedure be_popup(on : longint); external 'boss' name 'be_popup';
+procedure be_lists(inv, vis : pchar); external 'boss' name 'be_lists';
+procedure be_msg(s : pchar); external 'boss' name 'be_msg';
 {$ELSE}
 {$L be.o}
 {$linklib X11}
@@ -53,6 +64,12 @@ function be_getkey(wait : longint) : longint; cdecl; external;
 procedure be_sleep(ms : longint); cdecl; external;
 function be_want_save : longint; begin be_want_save := 0 end;
 procedure be_savename(p : pchar; saved : longint); begin end;
+{ X11: one text window, no panes }
+procedure be_pane(p, y, x, r, c : longint); begin end;
+procedure be_pput(p, y, x, ch : longint); begin end;
+procedure be_popup(on : longint); begin end;
+procedure be_lists(inv, vis : pchar); begin end;
+procedure be_msg(s : pchar); begin end;
 {$ENDIF}
 
 var
@@ -60,6 +77,33 @@ var
   cx : integer = 1;
   cy : integer = 1;
   pending : longint = -1;
+  view : boolean = false;
+  sentview : longint = -1;
+  pshown : tscreen;
+  ip : integer;
+
+{ BOSS's dungeon screen (1-based): 1 map, 2 character column, 3 status line,
+  4 message line }
+const
+  PANES = 4;
+  PY : array [1..PANES] of integer = (2, 2, 24, 1);
+  PX : array [1..PANES] of integer = (14, 1, 1, 1);
+  PR : array [1..PANES] of integer = (22, 22, 1, 1);
+  PC : array [1..PANES] of integer = (67, 13, 80, 80);
+
+procedure crt_view(on : boolean);
+begin
+view := on
+end;
+
+procedure crt_msg(const s : string);
+var z : ansistring;
+begin z := s; be_msg(pchar(z)) end;
+
+procedure crt_lists(const inv, vis : ansistring);
+begin
+be_lists(pchar(inv), pchar(vis))
+end;
 
 function crt_want_save : boolean;
 begin crt_want_save := be_want_save <> 0 end;
@@ -68,7 +112,7 @@ var z : ansistring;
 begin z := name; be_savename(pchar(z), ord(saved)) end;
 
 procedure crt_present;
-var y, x : integer;
+var y, x, p : integer;
 begin
 for y := 1 to scr_rows do
   for x := 1 to scr_cols do
@@ -77,6 +121,21 @@ for y := 1 to scr_rows do
       shown[y, x] := scr[y, x];
       be_put(y - 1, x - 1, scr[y, x])
       end;
+if ord(view) <> sentview then
+  begin
+  sentview := ord(view);
+  be_popup(ord(not view));
+  fillchar(pshown, sizeof(pshown), $ff)    { resend the panes }
+  end;
+if view then
+  for p := 1 to PANES do
+    for y := PY[p] to PY[p] + PR[p] - 1 do
+      for x := PX[p] to PX[p] + PC[p] - 1 do
+        if scr[y, x] <> pshown[y, x] then
+          begin
+          pshown[y, x] := scr[y, x];
+          be_pput(p, y - PY[p], x - PX[p], scr[y, x])
+          end;
 be_cursor(cy - 1, cx - 1);
 be_flush
 end;
@@ -101,7 +160,8 @@ var y, x : integer;
 begin
 for y := 1 to scr_rows do
   for x := 1 to scr_cols do scr[y, x] := 32;
-cx := 1; cy := 1
+cx := 1; cy := 1;
+view := false
 end;
 
 function keypressed : boolean;
@@ -166,6 +226,7 @@ initialization
   fillchar(shown, sizeof(shown), 0);
   clrscr;
   be_init(scr_cols, scr_rows - 1);    { row 25 is only ever cleared }
+  for ip := 1 to PANES do be_pane(ip, PY[ip] - 1, PX[ip] - 1, PR[ip], PC[ip]);
   assign(output, '');
   TextRec(output).openfunc := @crt_open;
   rewrite(output)

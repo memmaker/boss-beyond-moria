@@ -32,18 +32,22 @@ function status(msg, isError) {
 function measure() {
 	ctx.font = px + 'px ' + FONT;
 	cw = Math.ceil(ctx.measureText('M').width); ch = Math.ceil(px * 1.2);
-	cv.width = cols * cw * dpr; cv.height = rows * ch * dpr;
-	cv.style.width = cols * cw + 'px'; cv.style.height = rows * ch + 'px';
-	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	ctx.font = px + 'px ' + FONT;
-	ctx.textBaseline = 'top';
 	dirty = true;
 }
-/* screen: row 0 messages, cols 0-12 stats, cols 13-79 rows 1-22 map, rows 23- status */
-const MX = 13, MH = 22;
+/* panes (port/bcrt.pas): 1 map, 2 character column, 3 status line, 4 message line; the game
+ * sends each one's cells and says when a pop-up (any non-dungeon screen) covers them */
+const MAP = 1, PANE_BOX = { 1: 'map', 2: 'side', 3: 'stat', 4: 'msgcv' }, P = {};
+let popup = true;
+function size(c, w, h) {
+	if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; }
+	c.style.width = w + 'px'; c.style.height = h + 'px';
+	const g = c.getContext('2d');
+	g.setTransform(dpr, 0, 0, dpr, 0, 0); g.font = px + 'px ' + FONT; g.textBaseline = 'top';
+	return g;
+}
 /* biggest font that shows the map (single window: the whole screen) in the map window */
 function fit() {
-	const b = $('map'), one = !rects.side && !rects.stat, w = one ? cols : cols - MX, h = one ? rows : MH;
+	const b = $('map'), one = !rects.side && !rects.stat, w = one ? cols : P[MAP] ? P[MAP].c : 67, h = one ? rows : P[MAP] ? P[MAP].r : 22;
 	let best = 8;
 	for (let p = 8; p <= 40; p++) {
 		ctx.font = p + 'px ' + FONT;
@@ -51,78 +55,86 @@ function fit() {
 	}
 	return best;
 }
-/* windows are crops of the offscreen screen canvas; bigger than the window = centred on the cursor */
-function blit(id, sx, sy, sw, sh, fx, fy) {
-	const b = $(id), c = b.firstChild, W = b.clientWidth, H = b.clientHeight, s = id === 'full' ? Math.min(1, W / sw, H / sh) : 1;
-	if (c.width !== W * dpr || c.height !== H * dpr) { c.width = W * dpr; c.height = H * dpr; c.style.width = W + 'px'; c.style.height = H + 'px'; }
-	const g = c.getContext('2d'), ox = sw * s <= W ? (sw * s - W) / 2 : Math.max(0, Math.min(sw - W, fx - W / 2)),
-		oy = sh * s <= H ? 0 : Math.max(0, Math.min(sh - H, fy - H / 2));
-	g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
-	g.imageSmoothingEnabled = s < 1;
-	g.setTransform(dpr * s, 0, 0, dpr * s, -ox * dpr, -oy * dpr);
-	g.drawImage(cv, sx * dpr, sy * dpr, sw * dpr, sh * dpr, 0, 0, sw, sh);
+/* a canvas bigger than its window scrolls to keep (fx, fy) in the middle; smaller ones are centred */
+function scroll(c, fx, fy) {
+	const b = c.parentNode, W = b.clientWidth, H = b.clientHeight, w = parseFloat(c.style.width), h = parseFloat(c.style.height);
+	c.style.left = (w <= W ? (W - w) / 2 : -Math.max(0, Math.min(w - W, fx - W / 2))) + 'px';
+	c.style.top = (h <= H ? 0 : -Math.max(0, Math.min(h - H, fy - H / 2))) + 'px';
 }
-function rowText(y, x0, x1) { let s = ''; for (let x = x0; x < x1; x++) s += String.fromCharCode(scr[y * cols + x] & 0xff || 32); return s; }
-/* the dungeon screen shows "STR :" in the stats column; anything else (menus, stores) is full screen */
-function onMap() { for (let y = 1; y <= MH; y++) if (/^\s*STR :/.test(rowText(y, 0, MX))) return true; return false; }
-function show() {
-	if (!wm) return;
-	const one = !rects.side && !rects.stat, full = !one && !onMap();
-	$('full').hidden = !full;
-	if (full) blit('full', 0, 0, cols * cw, rows * ch, 0, 0);
-	if (one) blit('map', 0, 0, cols * cw, rows * ch, cur.x * cw, cur.y * ch);
-	else if (rects.map) blit('map', MX * cw, ch, (cols - MX) * cw, MH * ch, (cur.x - MX) * cw, (cur.y - 1) * ch);
-	if (rects.side) blit('side', 0, ch, MX * cw, MH * ch, 0, 0);
-	if (rects.stat) blit('stat', 0, (MH + 1) * ch, cols * cw, (rows - MH - 1) * ch, 0, 0);
-	logRow(rowText(0, 0, cols));
+function grid(g, buf, C, R) {
+	g.fillStyle = '#000'; g.fillRect(0, 0, C * cw, R * ch);
+	for (let y = 0; y < R; y++)
+		for (let x = 0; x < C; x++) {
+			const v = buf[y * C + x], c = v & 0xff;
+			let fg = v >> 8 & 15, bg = 0;
+			if (!fg) fg = 7;
+			if (v & A_STANDOUT) { bg = fg; fg = 0; }
+			if (bg) { g.fillStyle = PAL[bg]; g.fillRect(x * cw, y * ch, cw, ch); }
+			if (c > 32) { g.fillStyle = PAL[fg]; g.fillText(String.fromCharCode(c), x * cw, y * ch + (ch - px) / 2); }
+		}
 }
-/* message log: new text on row 0 goes to the Messages window */
-let lastMsg = '';
-function logRow(s) {
-	s = s.replace(/[^ -~]/g, ' ').trim();
-	if (s === lastMsg) return;
-	lastMsg = s;
-	if (!/[A-Za-z]{2}/.test(s)) return;
+function drawPane(p) {
+	const q = P[p], c = $(PANE_BOX[p]).firstChild;
+	if (!q) return;
+	grid(size(c, q.c * cw, q.r * ch), q.buf, q.c, q.r);
+	if (p === 4) c.parentNode.style.height = q.r * ch + 'px';
+	if (p !== MAP) return;
+	const cy = cur.y - q.y, cx = cur.x - q.x;
+	if (cy >= 0 && cy < q.r && cx >= 0 && cx < q.c) {
+		const g = c.getContext('2d');
+		g.fillStyle = PAL[7]; g.fillRect(cx * cw, cy * ch + ch - 2, cw, 2);
+		scroll(c, (cx + 0.5) * cw, (cy + 0.5) * ch);
+	} else scroll(c, 0, 0);
+}
+/* message history: lines the game prints (be_msg) */
+function logMsg(s) {
 	const l = $('log'), d = document.createElement('div'), end = l.scrollTop + l.clientHeight >= l.scrollHeight - 4;
 	d.textContent = s; l.appendChild(d);
 	if (l.childNodes.length > 500) l.removeChild(l.firstChild);
 	if (end) l.scrollTop = l.scrollHeight;
 }
+function fonts() { ['log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; }); }
 function saveLayout() { try { localStorage.setItem('boss-layout', JSON.stringify(L)); } catch (e) { } }
 /* the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
 function makeWM() {
 	try { const s = JSON.parse(localStorage.getItem('boss-layout')); if (s) L = { px: s.px | 0, font: s.font || 13, wm: s.wm }; } catch (e) { }
 	if (L.px >= 8 && L.px <= 40) { px = L.px; auto = false; measure(); }
-	$('log').style.fontSize = L.font + 'px';
+	fonts();
 	wm = RvipWM({
 		area: $('game'), menu: $('btn-layout'),
-		wins: [{ id: 'map', title: 'Map' }, { id: 'side', title: 'Character' }, { id: 'stat', title: 'Status' }, { id: 'msg', title: 'Messages' }],
-		multi: { d: 'h', r: 0.78, a: { d: 'v', r: 0.88, a: { d: 'h', r: 0.16, a: 'side', b: 'map' }, b: 'stat' }, b: 'msg' },
+		wins: [{ id: 'map', title: 'Map' }, { id: 'side', title: 'Character' }, { id: 'stat', title: 'Status' },
+			{ id: 'msg', title: 'Messages' }, { id: 'inv', title: 'Inventory' }, { id: 'vis', title: 'Visible' }],
+		multi: { d: 'h', r: 0.72, a: { d: 'v', r: 0.88, a: { d: 'h', r: 0.16, a: 'side', b: 'map' }, b: 'stat' },
+			b: { d: 'v', r: 0.35, a: 'msg', b: { d: 'v', r: 0.6, a: 'inv', b: 'vis' } } },
 		single: 'map',
 		state: L.wm, noFont: 'map',
 		save: st => { L.wm = st; saveLayout(); },
 		layout: r => { rects = r; if (auto) { px = fit(); measure(); } dirty = true; draw(); },
-		font: (id, d) => { L.font = Math.max(8, Math.min(28, L.font + d)); $('log').style.fontSize = L.font + 'px'; saveLayout(); },
-		onReset: () => { auto = true; L.px = 0; L.font = 13; L.wm = wm.state(); $('log').style.fontSize = '13px'; px = fit(); measure(); draw(); saveLayout(); }
+		font: (id, d) => { L.font = Math.max(8, Math.min(28, L.font + d)); fonts(); saveLayout(); },
+		onReset: () => { auto = true; L.px = 0; L.font = 13; L.wm = wm.state(); fonts(); px = fit(); measure(); draw(); saveLayout(); }
 	});
 	wm.apply();
 }
+/* single window: the whole screen in the map window; multi: the panes, the whole screen over them while a pop-up is up */
 function draw() {
-	if (!dirty || !scr) return;
+	if (!dirty || !scr || !wm) return;
 	dirty = false;
-	ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cols * cw, rows * ch);
-	for (let y = 0; y < rows; y++)
-		for (let x = 0; x < cols; x++) {
-			const v = scr[y * cols + x], c = v & 0xff;
-			let fg = v >> 8 & 15, bg = 0;
-			if (!fg) fg = 7;
-			if (v & A_STANDOUT) { bg = fg; fg = 0; }
-			if (bg) { ctx.fillStyle = PAL[bg]; ctx.fillRect(x * cw, y * ch, cw, ch); }
-			if (c > 32) { ctx.fillStyle = PAL[fg]; ctx.fillText(String.fromCharCode(c), x * cw, y * ch + (ch - px) / 2); }
+	const one = !rects.side && !rects.stat, box = one ? $('map') : $('full');
+	if (cv.parentNode !== box) box.appendChild(cv);
+	$('map').firstChild.style.display = one ? 'none' : '';
+	$('full').hidden = one || !popup;
+	if (one || popup) {
+		size(cv, cols * cw, rows * ch);
+		grid(ctx, scr, cols, rows);
+		ctx.fillStyle = PAL[7]; ctx.fillRect(cur.x * cw, cur.y * ch + ch - 2, cw, 2);
+		if (one) scroll(cv, cur.x * cw, cur.y * ch);
+		else {
+			const b = $('full'), s = Math.min(1, b.clientWidth / (cols * cw), b.clientHeight / (rows * ch));
+			cv.style.width = cols * cw * s + 'px'; cv.style.height = rows * ch * s + 'px';
+			scroll(cv, 0, 0);
 		}
-	ctx.fillStyle = PAL[7];
-	ctx.fillRect(cur.x * cw, cur.y * ch + ch - 2, cw, 2);
-	show();
+	}
+	if (!one) [1, 2, 3, 4].forEach(drawPane);
 }
 function zoom(d) {
 	auto = false;
@@ -146,6 +158,19 @@ const boss = {
 	be_put(y, x, v) { scr[y * cols + x] = v; dirty = true; },
 	be_cursor(y, x) { cur.y = y; cur.x = x; dirty = true; },
 	be_flush() { draw(); },
+	be_pane(p, y, x, r, c) { P[p] = { y, x, r, c, buf: new Uint32Array(r * c) }; dirty = true; },
+	be_pput(p, y, x, v) { P[p].buf[y * P[p].c + x] = v; dirty = true; },
+	be_popup(on) { if (popup !== !!on) { popup = !!on; dirty = true; } },
+	be_msg(p) { const s = cstr(p).trim(); if (s) logMsg(s); },
+	be_lists(inv, vis) {
+		$('inv').innerHTML = '';
+		cstr(inv).split('\n').forEach(l => {
+			if (!l) return;
+			const t = l.split('\t'), d = document.createElement('div');
+			d.textContent = t[1]; d.style.color = PAL[+t[0] || 7]; $('inv').appendChild(d);
+		});
+		RvipWM.visible($('vis'), cstr(vis).replace(/\t(\d+)$/gm, (m, c) => '\t' + PAL[+c || 7]));
+	},
 	/* asyncified: a Promise makes the game wait */
 	be_getkey(wait) {
 		if (events.length) return events.shift();
