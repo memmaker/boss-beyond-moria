@@ -16,7 +16,7 @@ var
     missle_ctr : integer = 0;  { Counter for missles }
     msg_line : integer;  { Contains message txt}
     msg_flag : boolean;  { Set with first msg  }
-    more_flag: boolean = true;  { Question -more- on/off -jeb}
+    more_flag: boolean = false; { Question -more- on/off -jeb}
     wall_flag: boolean = true;  { Toggle Neat Wall Paterns. -RLG}
     old_msg : vtype;    { Last message    }
     generate : boolean;  { Generate next level }

@@ -3352,7 +3352,7 @@ END;
           random_wierdness(0,false);  
         if (is_boss_dead and (randint(1000) = 1)) then
           begin
-	    more_flag := true;
+	    { RVIP: keep auto_more (was more_flag := true) }
             msg_print('One of the Boss''s underlings has replaced him!');
             msg_print('There is now a new Boss!');
             is_boss_dead := false;
