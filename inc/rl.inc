@@ -650,6 +650,7 @@ if py.flags.blind < 1 then
           end;
   temporary_slot := keep
   end;
+crt_hero(char_row - panel_row_prt - 1, char_col - panel_col_prt - 1);
 crt_lists(inv, vis)
 end;
 

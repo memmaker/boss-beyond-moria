@@ -16,7 +16,7 @@ const KEYS = { ArrowUp: 56, ArrowDown: 50, ArrowLeft: 52, ArrowRight: 54, Home: 
 	End: 49, PageDown: 51, Clear: 53, Enter: 13, Escape: 27, Backspace: 8, Delete: 8, Tab: 9 };
 
 let events = [], waiter = null, running = false, lastYield = 0, lastSave = 0, wantSaveFlag = false;
-let cols = 80, rows = 24, scr = null, cur = { y: 0, x: 0 };
+let cols = 80, rows = 24, scr = null, cur = { y: 0, x: 0 }, hero = { y: 0, x: 0 };
 let wm = null, rects = {}, L = { px: 0, font: 13, wm: null };
 let auto = true, cv, ctx, px = 18, cw = 11, ch = 22, dirty = true;
 const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -55,12 +55,8 @@ function fit() {
 	}
 	return best;
 }
-/* a canvas bigger than its window scrolls to keep (fx, fy) in the middle; smaller ones are centred */
-function scroll(c, fx, fy) {
-	const b = c.parentNode, W = b.clientWidth, H = b.clientHeight, w = parseFloat(c.style.width), h = parseFloat(c.style.height);
-	c.style.left = (w <= W ? (W - w) / 2 : -Math.max(0, Math.min(w - W, fx - W / 2))) + 'px';
-	c.style.top = (h <= H ? 0 : -Math.max(0, Math.min(h - H, fy - H / 2))) + 'px';
-}
+/* the map camera (RVIP.md W4): (fx, fy) centred, clamped at the edges */
+function scroll(c, fx, fy) { RvipWM.center(c, fx, fy, parseFloat(c.style.width), parseFloat(c.style.height)); }
 function grid(g, buf, C, R) {
 	g.fillStyle = '#000'; g.fillRect(0, 0, C * cw, R * ch);
 	for (let y = 0; y < R; y++)
@@ -84,8 +80,8 @@ function drawPane(p) {
 	if (cy >= 0 && cy < q.r && cx >= 0 && cx < q.c) {
 		const g = c.getContext('2d');
 		g.fillStyle = PAL[7]; g.fillRect(cx * cw, cy * ch + ch - 2, cw, 2);
-		scroll(c, (cx + 0.5) * cw, (cy + 0.5) * ch);
-	} else scroll(c, 0, 0);
+	}
+	scroll(c, (hero.x - q.x + 0.5) * cw, (hero.y - q.y + 0.5) * ch);
 }
 /* message history: lines the game prints (be_msg) */
 let lastMsg = '';
@@ -125,7 +121,7 @@ function draw() {
 		size(cv, cols * cw, rows * ch);
 		grid(ctx, scr, cols, rows);
 		ctx.fillStyle = PAL[7]; ctx.fillRect(cur.x * cw, cur.y * ch + ch - 2, cw, 2);
-		if (one) scroll(cv, cur.x * cw, cur.y * ch);
+		if (one) scroll(cv, (hero.x + 0.5) * cw, (hero.y + 0.5) * ch);
 		else {
 			const b = $('full'), s = Math.min(1, b.clientWidth / (cols * cw), b.clientHeight / (rows * ch));
 			cv.style.width = cols * cw * s + 'px'; cv.style.height = rows * ch * s + 'px';
@@ -155,6 +151,7 @@ const boss = {
 	},
 	be_put(y, x, v) { scr[y * cols + x] = v; dirty = true; },
 	be_cursor(y, x) { cur.y = y; cur.x = x; dirty = true; },
+	be_hero(y, x) { hero.y = y; hero.x = x; dirty = true; },
 	be_flush() { draw(); },
 	be_pane(p, y, x, r, c) { P[p] = { y, x, r, c, buf: new Uint32Array(r * c) }; dirty = true; },
 	be_pput(p, y, x, v) { P[p].buf[y * P[p].c + x] = v; dirty = true; },
