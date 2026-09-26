@@ -158,7 +158,7 @@ const boss = {
 			const q = [['g', 'boss'], ['ev', cstr(ev)], ['name', cstr(name).trim()], ['killer', cstr(killer)],
 				['depth', depth], ['score', score], ['turns', turns], ['lvl', lvl]]
 				.filter(a => a[1] !== '' && !(a[1] < 0)).map(a => a[0] + '=' + encodeURIComponent(a[1])).join('&');
-			fetch('/roguelikes/beacon?' + q, { keepalive: true, mode: 'no-cors' }).catch(() => {});
+			if (window.RvipWM && RvipWM.report) RvipWM.report(q); else fetch('/roguelikes/beacon?' + q, { keepalive: true, mode: 'no-cors' }).catch(function () {});
 		} catch (e) { }
 	},
 	be_hero(y, x) { hero.y = y; hero.x = x; dirty = true; },
