@@ -26,3 +26,10 @@
   after the given keys. Autosave every 2 s to IndexedDB (be_want_save);
   ^Z saves and ends, death/quit deletes the save.
 - Not done: tiles (user chose text), sound (6b).
+- Prompt line (RVIP step 5 / W4, 2026-09-26): the live message row is shown in a
+  box over the map by `RvipWM.prompt` (rvip-wm.js). A key hides it only while
+  the game waits for a command, so a question stays up until answered.
+  Here: `crt_at_cmd` (new in `port/bcrt.pas`, set around `inkey(command)` in
+  `rl_command`, `inc/rl.inc`), `be_getkey(wait, atcmd)` (also `port/be_x11.c`);
+  `web/boss.js` sends pane 4 (the message line) as text, the old `#msgcv`
+  element is gone.
