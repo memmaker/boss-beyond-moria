@@ -5,6 +5,7 @@ procedure upon_death;
 
 var
 	points : longint;
+	killer : vtype;
    
  
 { Prints the gravestone of the character }
@@ -226,6 +227,16 @@ const crown_ascii_art : array[1..15] of string[50] =
       begin
         points := trunc(max_exp/expfact) +
            100*(max_lev + townlist[town_num].lev_plus) - principal;
+        if total_winner_num > 0 then
+          crt_run_end('win', name, '', dun_level, points + 1000000*total_winner_num + 1000*(100-day), longint(day - 1) * 17280 + turn - 5760, lev)
+        else
+          begin     { killer as the monster is named: drop the article }
+            killer := died_from;
+            if pos('a ', lowercase(killer)) = 1 then delete(killer, 1, 2)
+            else if pos('an ', lowercase(killer)) = 1 then delete(killer, 1, 3)
+            else if pos('the ', lowercase(killer)) = 1 then delete(killer, 1, 4);
+            crt_run_end('death', name, killer, dun_level, points, longint(day - 1) * 17280 + turn - 5760, lev)
+          end;
         if total_winner_num > 0 then
           begin      
             kingly;

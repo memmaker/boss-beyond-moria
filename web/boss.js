@@ -152,6 +152,15 @@ const boss = {
 	},
 	be_put(y, x, v) { scr[y * cols + x] = v; dirty = true; },
 	be_cursor(y, x) { cur.y = y; cur.x = x; dirty = true; },
+	/* run report (roguelikes-index/server/CONTRACT.md): fire-and-forget, never throws */
+	be_beacon(ev, name, killer, depth, score, turns, lvl) {
+		try {
+			const q = [['g', 'boss'], ['ev', cstr(ev)], ['name', cstr(name).trim()], ['killer', cstr(killer)],
+				['depth', depth], ['score', score], ['turns', turns], ['lvl', lvl]]
+				.filter(a => a[1] !== '' && !(a[1] < 0)).map(a => a[0] + '=' + encodeURIComponent(a[1])).join('&');
+			fetch('/roguelikes/beacon?' + q, { keepalive: true, mode: 'no-cors' }).catch(() => {});
+		} catch (e) { }
+	},
 	be_hero(y, x) { hero.y = y; hero.x = x; dirty = true; },
 	be_flush() { draw(); },
 	be_pane(p, y, x, r, c) { P[p] = { y, x, r, c, buf: new Uint32Array(r * c) }; dirty = true; },

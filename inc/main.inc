@@ -4148,6 +4148,7 @@ END;
                                           else
                                             BEGIN
                                               clear(1,1);
+                                              crt_run_end('quit', py.misc.name, '', dun_level, -1, longint(day - 1) * 17280 + turn - 5760, py.misc.lev);
                                               halt(0)
                                             END;
                                         END;

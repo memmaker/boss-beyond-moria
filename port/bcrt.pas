@@ -33,6 +33,7 @@ procedure crt_view(on : boolean);
 procedure crt_lists(const inv, vis : ansistring);
 procedure crt_hero(y, x : longint);  { player's screen cell: the map camera centres on it (RVIP.md W4) }
 procedure crt_msg(const s : string);     { message history line }
+procedure crt_run_end(const ev, name, killer : string; depth, score, turns, lvl : longint);  { run-report beacon (web) }
 
 implementation
 
@@ -54,6 +55,7 @@ procedure be_pput(p, y, x, ch : longint); external 'boss' name 'be_pput';
 procedure be_popup(on : longint); external 'boss' name 'be_popup';
 procedure be_lists(inv, vis : pchar); external 'boss' name 'be_lists';
 procedure be_hero(y, x : longint); external 'boss' name 'be_hero';
+procedure be_beacon(ev, name, killer : pchar; depth, score, turns, lvl : longint); external 'boss' name 'be_beacon';
 procedure be_msg(s : pchar; fold : longint); external 'boss' name 'be_msg';
 {$ELSE}
 {$L be.o}
@@ -73,6 +75,7 @@ procedure be_pput(p, y, x, ch : longint); begin end;
 procedure be_popup(on : longint); begin end;
 procedure be_lists(inv, vis : pchar); begin end;
 procedure be_hero(y, x : longint); begin end;
+procedure be_beacon(ev, name, killer : pchar; depth, score, turns, lvl : longint); begin end;
 procedure be_msg(s : pchar; fold : longint); begin end;
 {$ENDIF}
 
@@ -123,6 +126,13 @@ end;
 procedure crt_lists(const inv, vis : ansistring);
 begin
 be_lists(pchar(inv), pchar(vis))
+end;
+
+procedure crt_run_end(const ev, name, killer : string; depth, score, turns, lvl : longint);
+var e, n, k : ansistring;
+begin
+e := ev; n := name; k := killer;
+be_beacon(pchar(e), pchar(n), pchar(k), depth, score, turns, lvl)
 end;
 
 procedure crt_hero(y, x : longint);
