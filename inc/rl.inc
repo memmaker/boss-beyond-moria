@@ -314,11 +314,7 @@ if rl_monsters_near > rl_near0 then begin rl_stop(''); exit end;
 if py.flags.blind > 0 then begin rl_stop('You can''t see.'); exit end;
 with cave[char_row, char_col] do
   if (rl_mode > 1) and (tptr > 0) and (t_list[tptr].tval = 105 + rl_mode) then
-    begin
-    if rl_mode = 2 then rl_step := '<' else rl_step := '>';
-    rl_mode := 0;
-    exit
-    end;
+    begin rl_stop(''); exit end;   { arrived: the player presses < / > again to take them }
 c := rl_path(opens);
 if c = #0 then
   begin
