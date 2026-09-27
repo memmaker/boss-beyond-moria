@@ -305,6 +305,7 @@ var
 begin
 rl_step := #0;
 rl_stood[char_row, char_col] := true;
+if rl_moved then delay(40);        { paint each step (web: be_sleep) }
 if keypressed then
   begin inkey(k); rl_stop(''); exit end;
 if rl_msgs <> rl_last_msgs then begin rl_stop(''); exit end;
