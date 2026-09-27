@@ -586,7 +586,7 @@ end;
 
 { ---------- Inventory and Visible windows (web) ---------- }
 
-{ inv: "<colour>\t<text>" lines; vis: "M<glyph><name>\t<colour>" and
+{ inv: "<colour>\t<text>" lines, text "a) ! name" (the item's own symbol); vis: "M<glyph><name>\t<colour>" and
   "I<glyph><name>\t<colour>" (PC palette indexes; BOSS has no colours) }
 { BOSS has no item colours: Angband's by kind, as PC palette indexes }
 function rl_colour(tval : integer) : char;
@@ -617,13 +617,13 @@ inv := ''; vis := '';
 for i := 1 to inven_ctr do
   begin
   objdes(s, i, true, 'i');
-  inv := inv + rl_colour(inventory[i].tval) + #9 + alpha_set[i] + ') ' + s + #10
+  inv := inv + rl_colour(inventory[i].tval) + #9 + alpha_set[i] + ') ' + inventory[i].tchar + ' ' + s + #10
   end;
 for i := 23 to equip_max do
   if equipment[i].tval > 0 then
     begin
     objdes(s, i, true, 'e');
-    inv := inv + rl_colour(equipment[i].tval) + #9'worn: ' + s + #10
+    inv := inv + rl_colour(equipment[i].tval) + #9'worn: ' + equipment[i].tchar + ' ' + s + #10
     end;
 if py.flags.blind < 1 then
   begin
