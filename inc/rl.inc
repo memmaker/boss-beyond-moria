@@ -119,10 +119,9 @@ end;
 { ---------- Command menu (Enter) ---------- }
 
 const
-  rl_ncmd = 60;
+  rl_ncmd = 58;
   rl_cmds : array [1..rl_ncmd] of string[40] = (
     '-Moving',
-    '1-9 Move (5 = stay a turn)', '.   Run in a direction',
     'g   Explore automatically', '<   Go up / walk to an up staircase',
     '>   Go down / walk to a down staircase',
     'R   Rest for a period', 'S   Search mode on/off', 's   Search for hidden doors',
