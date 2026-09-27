@@ -17,8 +17,8 @@ const KEYS = { ArrowUp: 56, ArrowDown: 50, ArrowLeft: 52, ArrowRight: 54, Home: 
 
 let events = [], waiter = null, running = false, lastYield = 0, lastSave = 0, wantSaveFlag = false;
 let cols = 80, rows = 24, scr = null, cur = { y: 0, x: 0 }, hero = { y: 0, x: 0 };
-let wm = null, rects = {}, L = { px: 0, font: 13, wm: null };
-let auto = true, cv, ctx, px = 18, cw = 11, ch = 22, dirty = true;
+let wm = null, rects = {}, L = { px: 0, font: 13, wm: null, face: '', mapFace: '' };
+let auto = true, cv, ctx, px = 18, cw = 11, cwT = 11, ch = 22, dirty = true;
 const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 let root, dat, memory, exports, currentSave = null, savedByPlayer = false;
 
@@ -29,20 +29,25 @@ function status(msg, isError) {
 }
 
 /* ---------- drawing ---------- */
+/* fonts: the top-bar choice (L.face) for every window but the map, the Map
+ * title bar's (L.mapFace) for the map; cw / cwT = their cell widths */
+function face(map) { const n = map ? L.mapFace : L.face; return n ? '"' + n + '", ' + FONT : FONT; }
 function measure() {
-	ctx.font = px + 'px ' + FONT;
+	ctx.font = px + 'px ' + face(true);
 	cw = Math.ceil(ctx.measureText('M').width); ch = Math.ceil(px * 1.2);
+	ctx.font = px + 'px ' + face(false);
+	cwT = Math.ceil(ctx.measureText('M').width);
 	dirty = true;
 }
 /* panes (port/bcrt.pas): 1 map, 2 character column, 3 status line, 4 message line; the game
  * sends each one's cells and says when a pop-up (any non-dungeon screen) covers them */
 const MAP = 1, PANE_BOX = { 1: 'map', 2: 'side', 3: 'stat' }, P = {};
 let popup = true;
-function size(c, w, h) {
+function size(c, w, h, map) {
 	if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; }
 	c.style.width = w + 'px'; c.style.height = h + 'px';
 	const g = c.getContext('2d');
-	g.setTransform(dpr, 0, 0, dpr, 0, 0); g.font = px + 'px ' + FONT; g.textBaseline = 'top';
+	g.setTransform(dpr, 0, 0, dpr, 0, 0); g.font = px + 'px ' + face(map); g.textBaseline = 'top';
 	return g;
 }
 /* biggest font that shows the map (single window: the whole screen) in the map window */
@@ -50,14 +55,14 @@ function fit() {
 	const b = $('map'), one = !rects.side && !rects.stat, w = one ? cols : P[MAP] ? P[MAP].c : 67, h = one ? rows : P[MAP] ? P[MAP].r : 22;
 	let best = 8;
 	for (let p = 8; p <= 40; p++) {
-		ctx.font = p + 'px ' + FONT;
+		ctx.font = p + 'px ' + face(true);
 		if (Math.ceil(ctx.measureText('M').width) * w <= b.clientWidth && Math.ceil(p * 1.2) * h <= b.clientHeight) best = p;
 	}
 	return best;
 }
 /* the map camera (RVIP.md W4): (fx, fy) centred, clamped at the edges */
 function scroll(c, fx, fy) { RvipWM.center(c, fx, fy, parseFloat(c.style.width), parseFloat(c.style.height)); }
-function grid(g, buf, C, R) {
+function grid(g, buf, C, R, cw) {
 	g.fillStyle = '#000'; g.fillRect(0, 0, C * cw, R * ch);
 	for (let y = 0; y < R; y++)
 		for (let x = 0; x < C; x++) {
@@ -75,10 +80,12 @@ function drawPane(p) {
 	/* message line (prompts, -more-): the prompt line over the map (rvip-wm.js) */
 	if (p === 4) { RvipWM.prompt.text(String.fromCharCode(...q.buf.map(v => v & 0xff || 32))); return; }
 	const b = $(PANE_BOX[p]), c = b.firstChild;
-	grid(size(c, q.c * cw, q.r * ch), q.buf, q.c, q.r);
+	const w = p === MAP ? cw : cwT;
+	grid(size(c, q.c * w, q.r * ch, p === MAP), q.buf, q.c, q.r, w);
 	if (p !== MAP) return;
 	const cy = cur.y - q.y, cx = cur.x - q.x;
-	if (cy >= 0 && cy < q.r && cx >= 0 && cx < q.c) {
+	/* no cursor on the hero */
+	if (cy >= 0 && cy < q.r && cx >= 0 && cx < q.c && !(cur.y === hero.y && cur.x === hero.x)) {
 		const g = c.getContext('2d');
 		g.fillStyle = PAL[7]; g.fillRect(cx * cw, cy * ch + ch - 2, cw, 2);
 	}
@@ -87,12 +94,13 @@ function drawPane(p) {
 /* message history: lines the game prints (be_msg) */
 let lastMsg = '';
 function logMsg(s, fold) { lastMsg = s.replace(/ \(x\d+\)$/, ''); RvipWM.log($('log'), s, fold); }
-function fonts() { ['log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; }); }
+function fonts() { ['log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; $(id).style.fontFamily = L.face ? face(false) : ''; }); }
 /* layout: a file next to the saves, so it goes to IndexedDB with them (persist) */
 function saveLayout() { root.contents.set('web-layout.json', new File(new TextEncoder().encode(JSON.stringify(L)))); persist().then(persist); }
 /* the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
 function makeWM() {
-	try { const s = JSON.parse(new TextDecoder().decode(root.contents.get('web-layout.json').data)); if (s) L = { px: s.px | 0, font: s.font || 13, wm: s.wm }; } catch (e) { }
+	try { const s = JSON.parse(new TextDecoder().decode(root.contents.get('web-layout.json').data)); if (s) L = { px: s.px | 0, font: s.font || 13, wm: s.wm, face: s.face || '', mapFace: s.mapFace || '' }; } catch (e) { }
+	loadFace(L.face); loadFace(L.mapFace); fontSel();
 	if (L.px >= 8 && L.px <= 40) { px = L.px; auto = false; measure(); }
 	fonts();
 	wm = RvipWM({
@@ -102,30 +110,53 @@ function makeWM() {
 		multi: { d: 'h', r: 0.72, a: { d: 'v', r: 0.88, a: { d: 'h', r: 0.16, a: 'side', b: 'map' }, b: 'stat' },
 			b: { d: 'v', r: 0.35, a: 'msg', b: { d: 'v', r: 0.6, a: 'inv', b: 'vis' } } },
 		single: 'map',
-		state: L.wm, noFont: 'map',
+		state: L.wm,
 		save: st => { L.wm = st; saveLayout(); },
 		layout: r => { rects = r; if (auto) { px = fit(); measure(); } dirty = true; draw(); },
-		font: (id, d) => { L.font = Math.max(8, Math.min(28, L.font + d)); fonts(); saveLayout(); },
-		onReset: () => { auto = true; L.px = 0; L.font = 13; L.wm = wm.state(); fonts(); px = fit(); measure(); draw(); saveLayout(); }
+		/* A− / A+ on each title bar; the map's zooms the map */
+		font: (id, d) => { if (id === 'map') { zoom(d); return; } L.font = Math.max(8, Math.min(28, L.font + d)); fonts(); saveLayout(); },
+		onReset: () => { auto = true; L.px = 0; L.font = 13; L.wm = wm.state(); renderMapSel(); fonts(); px = fit(); measure(); draw(); saveLayout(); }
 	});
 	wm.apply();
+	renderMapSel();
+}
+/* font choosers: the top bar's and the Map title bar's (shown on hover);
+ * the faces are the index page's fonts/ (web/build.sh writes fonts.json) */
+const mapSel = document.createElement('select');
+mapSel.title = 'Map font';
+mapSel.innerHTML = '<option value="">Default font</option>';
+mapSel.addEventListener('pointerdown', e => e.stopPropagation());   /* not a window drag */
+function renderMapSel() {
+	const bs = document.querySelector('#t-map .wm-btns');
+	if (bs && mapSel.parentNode !== bs) bs.insertBefore(mapSel, bs.firstChild);
+}
+function fontSel() { $('sel-font').value = L.face || ''; mapSel.value = L.mapFace || ''; }
+function loadFace(n, now) {
+	const redraw = () => { if (auto && wm) px = fit(); measure(); fonts(); draw(); };
+	if (!n) { if (now) redraw(); return; }
+	const ff = new FontFace(n, 'url(../fonts/' + n + '.woff)');
+	ff.load().then(() => { document.fonts.add(ff); redraw(); }).catch(() => status('Could not load the font ' + n + '.', true));
 }
 /* single window: the whole screen in the map window; multi: the panes, the whole screen over them while a pop-up is up */
 function draw() {
 	if (!dirty || !scr || !wm) return;
 	dirty = false;
+	const log = $('log'); log.scrollTop = log.scrollHeight;   /* newest message in view */
 	const one = !rects.side && !rects.stat, box = one ? $('map') : $('full');
 	if (cv.parentNode !== box) box.appendChild(cv);
 	$('map').firstChild.style.display = one ? 'none' : '';
 	$('full').hidden = one || !popup;
 	if (one || popup) {
-		size(cv, cols * cw, rows * ch);
-		grid(ctx, scr, cols, rows);
-		ctx.fillStyle = PAL[7]; ctx.fillRect(cur.x * cw, cur.y * ch + ch - 2, cw, 2);
-		if (one) scroll(cv, (hero.x + 0.5) * cw, (hero.y + 0.5) * ch);
+		/* one window shows the map: its font; a pop-up is text */
+		const w = one ? cw : cwT;
+		size(cv, cols * w, rows * ch, one);
+		grid(ctx, scr, cols, rows, w);
+		/* no cursor on the hero (only at the command prompt: a pop-up's cursor may share the cell) */
+		if (popup || cur.y !== hero.y || cur.x !== hero.x) { ctx.fillStyle = PAL[7]; ctx.fillRect(cur.x * w, cur.y * ch + ch - 2, w, 2); }
+		if (one) scroll(cv, (hero.x + 0.5) * w, (hero.y + 0.5) * ch);
 		else {
-			const b = $('full'), s = Math.min(1, b.clientWidth / (cols * cw), b.clientHeight / (rows * ch));
-			cv.style.width = cols * cw * s + 'px'; cv.style.height = rows * ch * s + 'px';
+			const b = $('full'), s = Math.min(1, b.clientWidth / (cols * w), b.clientHeight / (rows * ch));
+			cv.style.width = cols * w * s + 'px'; cv.style.height = rows * ch * s + 'px';
 			scroll(cv, 0, 0);
 		}
 	}
@@ -406,8 +437,17 @@ document.addEventListener('DOMContentLoaded', () => {
 	$('btn-new').onclick = newGame;
 	$('btn-help').onclick = toggleHelp;
 	$('help-close').onclick = toggleHelp;
-	$('btn-zoom-in').onclick = () => zoom(1);
-	$('btn-zoom-out').onclick = () => zoom(-1);
+	RvipWM.dropdown($('btn-file'), $('menu-file'));
+	fetch('fonts.json').then(r => r.json()).then(list => {
+		[$('sel-font'), mapSel].forEach(sel => list.forEach(n => {
+			const o = document.createElement('option');
+			o.value = n; o.textContent = n.replace(/^Web(Plus|437)_/, '').replace(/_/g, ' '); sel.appendChild(o);
+		}));
+		fontSel();
+	}).catch(() => { });
+	[[$('sel-font'), 'face'], [mapSel, 'mapFace']].forEach(([sel, k]) => {
+		sel.onchange = function () { L[k] = this.value; if (root) saveLayout(); loadFace(this.value, true); this.blur(); };
+	});
 	$('btn-restart').onclick = () => location.reload();
 	document.querySelectorAll('button').forEach(b => b.addEventListener('mousedown', e => e.preventDefault()));
 	main().catch(crashed);
