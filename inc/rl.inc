@@ -358,6 +358,35 @@ end;
 
 { ---------- Inventory ---------- }
 
+{ BOSS has no item colours: Angband's by kind, as PC palette indexes }
+function rl_colour(tval : integer) : char;
+begin
+case tval of
+  75, 76: rl_colour := '9';          { potions: light blue }
+  70, 71: rl_colour := 'f';          { scrolls: white }
+  45: rl_colour := 'c';              { rings: light red }
+  40, 55, 80: rl_colour := '6';      { amulets, staffs, food: brown/orange }
+  65: rl_colour := 'a';              { wands: light green }
+  90, 91, 92: rl_colour := 'b';      { books: cyan }
+  15, 77, 100: rl_colour := 'e';     { light, flasks, gold: yellow }
+  10, 11, 12: rl_colour := '8';      { ammo: dark grey }
+  30..36: rl_colour := '6';          { armour: umber }
+  82, 84: rl_colour := 'd';          { devices: magenta }
+  otherwise rl_colour := '7'         { weapons, tools }
+end
+end;
+
+{ rl_put in the item's colour (the Inventory pane's, rl_lists) }
+procedure rl_put_item(s : string; row, tval : integer; hl : boolean);
+begin
+text_attr := (pos(rl_colour(tval), '0123456789abcdef') - 1) shl 8;
+if hl then text_attr := text_attr or $10000;
+gotoxy(1, row);
+write(s);
+text_attr := 0
+end;
+
+
 { The main action key for an inventory item (#0 = examine). }
 function rl_main_key(tval : integer) : char;
 begin
@@ -480,7 +509,7 @@ end;
 function rl_inven(which : char) : string;
 var
   saved : tscreen;
-  sel, top, n, i, slot, row : integer;
+  sel, top, n, i, slot, row, t : integer;
   c, k : char;
   s : shortstring;
   equip, done : boolean;
@@ -518,14 +547,16 @@ repeat
       begin
       slot := rl_equip_slot(i);
       objdes(s, slot, true, 'e');
-      s := chr(96 + i) + ') ' + s
+      s := chr(96 + i) + ') ' + s;
+      t := equipment[slot].tval
       end
     else
       begin
       objdes(s, i, true, 'i');
-      s := alpha_set[i] + ') ' + s
+      s := alpha_set[i] + ') ' + s;
+      t := inventory[i].tval
       end;
-    rl_put(copy(s, 1, 78), row + 2, 1, i = sel)
+    rl_put_item(copy(s, 1, 78), row + 2, t, i = sel)
     end;
   rl_put('letter: ' + 'main action   Shift+letter: drop   Ctrl+letter: examine   + - *: keypad', 24, 1, false);
   gotoxy(1, sel - top + 2);
@@ -588,24 +619,6 @@ end;
 
 { inv: "<colour>\t<text>" lines, text "a) ! name" (the item's own symbol); vis: "M<glyph><name>\t<colour>" and
   "I<glyph><name>\t<colour>" (PC palette indexes; BOSS has no colours) }
-{ BOSS has no item colours: Angband's by kind, as PC palette indexes }
-function rl_colour(tval : integer) : char;
-begin
-case tval of
-  75, 76: rl_colour := '9';          { potions: light blue }
-  70, 71: rl_colour := 'f';          { scrolls: white }
-  45: rl_colour := 'c';              { rings: light red }
-  40, 55, 80: rl_colour := '6';      { amulets, staffs, food: brown/orange }
-  65: rl_colour := 'a';              { wands: light green }
-  90, 91, 92: rl_colour := 'b';      { books: cyan }
-  15, 77, 100: rl_colour := 'e';     { light, flasks, gold: yellow }
-  10, 11, 12: rl_colour := '8';      { ammo: dark grey }
-  30..36: rl_colour := '6';          { armour: umber }
-  82, 84: rl_colour := 'd';          { devices: magenta }
-  otherwise rl_colour := '7'         { weapons, tools }
-end
-end;
-
 procedure rl_lists;
 var
   inv, vis : ansistring;
