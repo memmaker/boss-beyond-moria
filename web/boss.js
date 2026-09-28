@@ -17,7 +17,7 @@ const KEYS = { ArrowUp: 56, ArrowDown: 50, ArrowLeft: 52, ArrowRight: 54, Home: 
 
 let events = [], waiter = null, running = false, lastYield = 0, lastSave = 0, wantSaveFlag = false;
 let cols = 80, rows = 24, scr = null, cur = { y: 0, x: 0 }, hero = { y: 0, x: 0 };
-let wm = null, rects = {}, L = { px: 0, font: 13, wm: null, face: '', mapFace: '' };
+let wm = null, rects = {}, L = { px: 0, wm: null, face: '', mapFace: '' };
 let auto = true, cv, ctx, px = 18, cw = 11, cwT = 11, ch = 22, dirty = true;
 const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 let root, dat, memory, exports, currentSave = null, savedByPlayer = false;
@@ -43,11 +43,11 @@ function measure() {
  * sends each one's cells and says when a pop-up (any non-dungeon screen) covers them */
 const MAP = 1, PANE_BOX = { 1: 'map', 2: 'side', 3: 'stat' }, P = {};
 let popup = true;
-function size(c, w, h, map) {
+function size(c, w, h, map, fpx = px) {
 	if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; }
 	c.style.width = w + 'px'; c.style.height = h + 'px';
 	const g = c.getContext('2d');
-	g.setTransform(dpr, 0, 0, dpr, 0, 0); g.font = px + 'px ' + face(map); g.textBaseline = 'top';
+	g.setTransform(dpr, 0, 0, dpr, 0, 0); g.font = fpx + 'px ' + face(map); g.textBaseline = 'top';
 	return g;
 }
 /* biggest font that shows the map (single window: the whole screen) in the map window */
@@ -62,7 +62,7 @@ function fit() {
 }
 /* the map camera (RVIP.md W4): (fx, fy) centred, clamped at the edges */
 function scroll(c, fx, fy) { RvipWM.center(c, fx, fy, parseFloat(c.style.width), parseFloat(c.style.height)); }
-function grid(g, buf, C, R, cw) {
+function grid(g, buf, C, R, cw, ch = cellH(), fpx = px) {
 	g.fillStyle = '#000'; g.fillRect(0, 0, C * cw, R * ch);
 	for (let y = 0; y < R; y++)
 		for (let x = 0; x < C; x++) {
@@ -71,8 +71,17 @@ function grid(g, buf, C, R, cw) {
 			if (!fg) fg = 7;
 			if (v & A_STANDOUT) { bg = fg; fg = 0; }
 			if (bg) { g.fillStyle = PAL[bg]; g.fillRect(x * cw, y * ch, cw, ch); }
-			if (c > 32) { g.fillStyle = PAL[fg]; g.fillText(String.fromCharCode(c), x * cw, y * ch + (ch - px) / 2); }
+			if (c > 32) { g.fillStyle = PAL[fg]; g.fillText(String.fromCharCode(c), x * cw, y * ch + (ch - fpx) / 2); }
 		}
+}
+function cellH() { return ch; }
+/* Character and Status: their own A− / A+ size (the WM keeps it), else the map's */
+let paneFs = {};   /* side / stat: the size A− / A+ gave them (none: the map's) */
+function paneCell(p) {
+	const fs = paneFs[PANE_BOX[p]];
+	if (p === MAP || !fs) return { w: p === MAP ? cw : cwT, h: ch, px: px };
+	ctx.font = fs + 'px ' + face(false);
+	return { w: Math.ceil(ctx.measureText('M').width), h: Math.ceil(fs * 1.2), px: fs };
 }
 function drawPane(p) {
 	const q = P[p];
@@ -80,8 +89,8 @@ function drawPane(p) {
 	/* message line (prompts, -more-): the prompt line over the map (rvip-wm.js) */
 	if (p === 4) { RvipWM.prompt.text(String.fromCharCode(...q.buf.map(v => v & 0xff || 32))); return; }
 	const b = $(PANE_BOX[p]), c = b.firstChild;
-	const w = p === MAP ? cw : cwT;
-	grid(size(c, q.c * w, q.r * ch, p === MAP), q.buf, q.c, q.r, w);
+	const k = paneCell(p);
+	grid(size(c, q.c * k.w, q.r * k.h, p === MAP, k.px), q.buf, q.c, q.r, k.w, k.h, k.px);
 	if (p !== MAP) return;
 	const cy = cur.y - q.y, cx = cur.x - q.x;
 	/* no cursor on the hero */
@@ -94,13 +103,16 @@ function drawPane(p) {
 /* message history: lines the game prints (be_msg) */
 let lastMsg = '';
 function logMsg(s, fold) { lastMsg = s.replace(/ \(x\d+\)$/, ''); RvipWM.log($('log'), s, fold); }
-function fonts() { ['log', 'inv', 'vis'].forEach(id => { $(id).style.fontSize = L.font + 'px'; $(id).style.fontFamily = L.face ? face(false) : ''; }); }
+function fonts() { ['log', 'inv', 'vis'].forEach(id => { $(id).style.fontFamily = L.face ? face(false) : ''; }); }
 /* layout: a file next to the saves, so it goes to IndexedDB with them (persist) */
 function saveLayout() { root.contents.set('web-layout.json', new File(new TextEncoder().encode(JSON.stringify(L)))); persist().then(persist); }
 /* the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
 function makeWM() {
-	try { const s = JSON.parse(new TextDecoder().decode(root.contents.get('web-layout.json').data)); if (s) L = { px: s.px | 0, font: s.font || 13, wm: s.wm, face: s.face || '', mapFace: s.mapFace || '' }; } catch (e) { }
+	try { const s = JSON.parse(new TextDecoder().decode(root.contents.get('web-layout.json').data)); if (s) L = { px: s.px | 0, wm: s.wm, face: s.face || '', mapFace: s.mapFace || '' };
+		if (s && s.font && L.wm && !L.wm.fs) L.wm.fs = { msg: s.font, inv: s.font, vis: s.font };   /* old layout: one size, L.font */
+	} catch (e) { }
 	loadFace(L.face); loadFace(L.mapFace); fontSel();
+	['side', 'stat'].forEach(id => { if (L.wm && L.wm.fs && L.wm.fs[id]) paneFs[id] = L.wm.fs[id]; });
 	if (L.px >= 8 && L.px <= 40) { px = L.px; auto = false; measure(); }
 	fonts();
 	wm = RvipWM({
@@ -113,9 +125,9 @@ function makeWM() {
 		state: L.wm,
 		save: st => { L.wm = st; saveLayout(); },
 		layout: r => { rects = r; if (auto) { px = fit(); measure(); } dirty = true; draw(); },
-		/* A− / A+ on each title bar; the map's zooms the map */
-		font: (id, d) => { if (id === 'map') { zoom(d); return; } L.font = Math.max(8, Math.min(28, L.font + d)); fonts(); saveLayout(); },
-		onReset: () => { auto = true; L.px = 0; L.font = 13; L.wm = wm.state(); renderMapSel(); fonts(); px = fit(); measure(); draw(); saveLayout(); }
+		/* A− / A+ on each title bar (the WM keeps the sizes); the map's zooms the map */
+		zoom: { map: (size, d) => zoom(d), side: paneZoom('side'), stat: paneZoom('stat') },
+		onReset: () => { auto = true; paneFs = {}; L.px = 0; L.wm = wm.state(); renderMapSel(); fonts(); px = fit(); measure(); draw(); saveLayout(); }
 	});
 	wm.apply();
 	renderMapSel();
@@ -162,6 +174,7 @@ function draw() {
 	}
 	if (!one) [1, 2, 3, 4].forEach(drawPane);
 }
+function paneZoom(id) { return size => { paneFs[id] = size; dirty = true; draw(); }; }
 function zoom(d) {
 	auto = false;
 	px = Math.max(8, Math.min(40, px + d));

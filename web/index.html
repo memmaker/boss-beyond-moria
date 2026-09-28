@@ -48,6 +48,7 @@
 	#log { flex: 1; min-height: 0; }
 	.win > .body canvas, #full canvas { position: absolute; }
 	#log, #inv { overflow-y: auto; padding: 4px 8px; font: 13px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+	#log { font-size: inherit; }   /* the Messages window's size (A− / A+) is set on its body */
 	#log div + div { border-top: 1px solid var(--line); }
 	#full { position: absolute; inset: 0; z-index: 3; background: #000; }
 	#full[hidden] { display: none; }
