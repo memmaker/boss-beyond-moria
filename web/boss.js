@@ -124,6 +124,7 @@ function makeWM() {
 		layout: r => { rects = r; if (auto) { px = fit(); measure(); } dirty = true; draw(); },
 		/* A− / A+ on each title bar (the WM keeps the sizes); the map's zooms the map */
 		zoom: { map: (size, d) => zoom(d), side: paneZoom('side'), stat: paneZoom('stat') },
+		size: { side: () => px, stat: () => px },   /* before A− / A+ they draw at the map's size */
 		onReset: () => { auto = true; paneFs = {}; L.px = 0; L.wm = wm.state(); renderMapSel(); fonts(); px = fit(); measure(); draw(); saveLayout(); }
 	});
 	wm.apply();
