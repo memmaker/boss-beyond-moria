@@ -32,7 +32,7 @@ SAVING = '''<ul>
 </ul>'''
 
 WEB = '''<ul>
-<li>One 80×24 text screen, as on the VAX terminals BOSS was written for. <em>Zoom −</em> / <em>Zoom +</em> change the text size.</li>
+<li>One 80×24 text screen, as on the VAX terminals BOSS was written for. <em>A−</em> / <em>A+</em> on the Map title bar (shown on hover) change the text size.</li>
 <li><strong>Keys:</strong> the number keys, arrow keys or numeric keypad move you; <kbd>.</kbd> + direction runs.</li>
 <li>Browsers keep a few shortcuts for themselves (<kbd>Ctrl+W</kbd>, <kbd>Ctrl+T</kbd>, <kbd>Ctrl+N</kbd>, and <kbd>Cmd</kbd> shortcuts on a Mac), so those never reach the game. <kbd>Ctrl+P</kbd> (repeat the last message) and <kbd>Ctrl+Z</kbd> (save) work.</li>
 <li>If the game ever crashes, a message appears at the top; reload the page to continue from the last autosave.</li>
