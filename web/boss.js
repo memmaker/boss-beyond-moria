@@ -321,16 +321,14 @@ function persist() {
 }
 function saves() { return [...root.contents.keys()].filter(n => /\.sav$/.test(n)); }
 /* saves, help, crashes: ../rvip-app.js. The saves live in a WASI directory, not
- * Emscripten's FS: Module.FS gives rvip-app.js the two calls it uses (syncfs, readFile) */
-window.Module = { FS: {
-	syncfs: (populate, cb) => { persist().then(() => cb(), cb); },
-	readFile: name => root.contents.get(name).data
-} };
+ * Emscripten's FS: read and sync reach it */
 const app = RvipApp({
 	name: 'boss',
 	save: () => { const n = currentSave && root.contents.has(currentSave) ? currentSave : saves()[0]; return n || null; },
 	clear: () => { for (const n of saves()) root.contents.delete(n); },
 	put: (file, data) => { root.contents.set(/\.sav$/.test(file.name) ? file.name : file.name + '.sav', new File(data)); },
+	read: name => root.contents.get(name).data,
+	sync: cb => { persist().then(() => cb(), cb); },
 	helpText: 'Press ? in the game for its own help.'
 });
 
