@@ -15,7 +15,7 @@ const A_STANDOUT = 0x10000;
 const KEYS = { ArrowUp: 56, ArrowDown: 50, ArrowLeft: 52, ArrowRight: 54, Home: 55, PageUp: 57,
 	End: 49, PageDown: 51, Clear: 53, Enter: 13, Escape: 27, Backspace: 8, Delete: 8, Tab: 9 };
 
-let events = [], waiter = null, running = false, lastYield = 0, lastSave = 0, wantSaveFlag = false;
+let events = [], waiter = null, lastYield = 0, lastSave = 0, wantSaveFlag = false;
 let cols = 80, rows = 24, scr = null, cur = { y: 0, x: 0 }, hero = { y: 0, x: 0 };
 let wm = null, rects = {}, L = { px: 0, wm: null, face: '', mapFace: '' };
 let auto = true, cv, ctx, px = 18, cw = 11, cwT = 11, ch = 22, dirty = true;
@@ -23,10 +23,7 @@ const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 let root, dat, memory, exports, currentSave = null, savedByPlayer = false;
 
 const $ = id => document.getElementById(id);
-function status(msg, isError) {
-	const s = $('status');
-	s.textContent = msg; s.hidden = !msg; s.classList.toggle('error', !!isError);
-}
+function status(msg, isError) { app.status(msg, isError); }
 
 /* ---------- drawing ---------- */
 /* fonts: the top-bar choice (L.face) for every window but the map, the Map
@@ -248,11 +245,7 @@ const boss = {
 
 /* ---------- input ---------- */
 function onKey(e) {
-	if (!$('help').hidden) {
-		if (e.key === 'Escape') { $('help').hidden = true; e.preventDefault(); }
-		return;
-	}
-	if (!running || e.isComposing || e.metaKey) return;
+	if (!app.running || e.isComposing || e.metaKey) return;
 	const k = e.key, code = e.code || '', m = /^Numpad(\d)$/.exec(code);
 	let c;
 	if (m) c = 48 + +m[1];
@@ -327,32 +320,19 @@ function persist() {
 	return persisting;
 }
 function saves() { return [...root.contents.keys()].filter(n => /\.sav$/.test(n)); }
-function exportSave() {
-	const name = currentSave && root.contents.has(currentSave) ? currentSave : saves()[0];
-	if (!name) { status('There is no saved game yet.', true); setTimeout(() => status(''), 2000); return; }
-	const a = document.createElement('a');
-	a.href = URL.createObjectURL(new Blob([root.contents.get(name).data], { type: 'application/octet-stream' }));
-	a.download = name;
-	document.body.appendChild(a); a.click();
-	setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-}
-function importSave(file) {
-	const r = new FileReader();
-	r.onload = async () => {
-		const name = /\.sav$/.test(file.name) ? file.name : file.name + '.sav';
-		if (!confirm('Add "' + name + '" to the saved games in this browser and restart?')) return;
-		running = false;
-		root.contents.set(name, new File(new Uint8Array(r.result)));
-		await persist(); location.reload();
-	};
-	r.readAsArrayBuffer(file);
-}
-async function newGame() {
-	if (!confirm('Delete every saved game in this browser and start over?')) return;
-	running = false;
-	for (const n of saves()) root.contents.delete(n);
-	await persist(); location.reload();
-}
+/* saves, help, crashes: ../rvip-app.js. The saves live in a WASI directory, not
+ * Emscripten's FS: Module.FS gives rvip-app.js the two calls it uses (syncfs, readFile) */
+window.Module = { FS: {
+	syncfs: (populate, cb) => { persist().then(() => cb(), cb); },
+	readFile: name => root.contents.get(name).data
+} };
+const app = RvipApp({
+	name: 'boss',
+	save: () => { const n = currentSave && root.contents.has(currentSave) ? currentSave : saves()[0]; return n || null; },
+	clear: () => { for (const n of saves()) root.contents.delete(n); },
+	put: (file, data) => { root.contents.set(/\.sav$/.test(file.name) ? file.name : file.name + '.sav', new File(data)); },
+	helpText: 'Press ? in the game for its own help.'
+});
 
 /* ---------- startup ---------- */
 async function main() {
@@ -394,7 +374,7 @@ async function main() {
 	const base = memory.grow(8) * 65536;
 	new Int32Array(memory.buffer, base, 2).set([base + 8, base + 8 * 65536]);
 	data = base;
-	running = true; status('');
+	app.running = true; status('');
 	let code = 0;
 	try {
 		exports._start();
@@ -406,50 +386,24 @@ async function main() {
 		}
 	} catch (e) {
 		if (e instanceof WASIProcExit) code = e.code;
-		else { crashed(e); return; }
+		else { app.crashed(e); return; }
 	}
 	end(code);
 }
 async function end() {
-	running = false;
+	app.running = false;
 	draw();
 	if (!savedByPlayer && currentSave && root.contents.has(currentSave)) root.contents.delete(currentSave);   /* died or quit */
 	await persist();
 	$('overlay-msg').textContent = savedByPlayer ? 'Your game has been saved. Play again to continue it.' : 'The game is over.';
 	$('overlay').hidden = false;
 }
-function crashed(err) {
-	running = false;
-	console.error('[boss] crash:', err);
-	status('The game crashed (' + (err && err.message || err) + '). Reload the page to continue from the last autosave.', true);
-}
-
-/* ---------- help ---------- */
-let helpLoaded = false;
-function toggleHelp() {
-	const h = $('help');
-	h.hidden = !h.hidden;
-	if (!h.hidden && !helpLoaded) {
-		helpLoaded = true;
-		fetch('help.html').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
-			.then(t => { $('help-body').innerHTML = t; })
-			.catch(err => { helpLoaded = false; $('help-body').textContent = 'Could not load the guide (' + err + '). Press ? in the game for its own help.'; });
-	}
-	if (!h.hidden) $('help-body').focus();
-}
-
 document.addEventListener('visibilitychange', () => { if (document.hidden) wantSaveFlag = true; });
 window.addEventListener('resize', () => { if (wm) wm.apply(); });
 document.addEventListener('keydown', onKey);
 document.addEventListener('DOMContentLoaded', () => {
 	cv = document.createElement('canvas');
 	ctx = cv.getContext('2d');
-	$('btn-export').onclick = exportSave;
-	$('btn-import').onclick = () => $('import-file').click();
-	$('import-file').onchange = function () { if (this.files[0]) importSave(this.files[0]); this.value = ''; };
-	$('btn-new').onclick = newGame;
-	$('btn-help').onclick = toggleHelp;
-	$('help-close').onclick = toggleHelp;
 	RvipWM.dropdown($('btn-file'), $('menu-file'));
 	fetch('fonts.json').then(r => r.json()).then(list => {
 		[$('sel-font'), mapSel].forEach(sel => list.forEach(n => {
@@ -463,5 +417,5 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 	$('btn-restart').onclick = () => location.reload();
 	document.querySelectorAll('button').forEach(b => b.addEventListener('mousedown', e => e.preventDefault()));
-	main().catch(crashed);
+	main().catch(err => { if (app.running) app.crashed(err); else status('Could not start the game (' + (err && err.message || err) + ').', true); });
 });
