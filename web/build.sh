@@ -16,8 +16,6 @@ wasm-opt -O2 --enable-reference-types --enable-bulk-memory $BMO --enable-sign-ex
 cp dat/* "$OUT/dat/"
 /bin/ls dat > "$OUT/dat/files.txt"
 cp web/index.html web/boss.js "$OUT/"
-# text fonts: the index page's fonts/ (served at ../fonts/ next to the games)
-(cd ~/Games/roguelikes-index/fonts && ls *.woff | sed 's/\.woff$//') | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().split()))' > "$OUT/fonts.json"
 cp -r web/vendor "$OUT/vendor"
 python3 web/make-help.py > "$OUT/help.html"
 rm -rf web/build

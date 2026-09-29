@@ -404,11 +404,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	cv = document.createElement('canvas');
 	ctx = cv.getContext('2d');
 	RvipWM.dropdown($('btn-file'), $('menu-file'));
-	fetch('fonts.json').then(r => r.json()).then(list => {
-		[$('sel-font'), mapSel].forEach(sel => list.forEach(n => {
-			const o = document.createElement('option');
-			o.value = n; o.textContent = n.replace(/^Web(Plus|437)_/, '').replace(/_/g, ' '); sel.appendChild(o);
-		}));
+	RvipWM.fonts.then(list => {
+		[$('sel-font'), mapSel].forEach(sel => RvipWM.fontOptions(sel));
 		fontSel();
 	}).catch(() => { });
 	[[$('sel-font'), 'face'], [mapSel, 'mapFace']].forEach(([sel, k]) => {
